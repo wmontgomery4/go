@@ -1,10 +1,15 @@
 import numpy as np
 
+BLACK = 1
+WHITE = -1
 
 class Board():
-    def __init__(self):
-        self.size = 19
+    def __init__(self, size=19):
+        self.size = size
         self.grid = np.zeros((self.size,self.size), dtype=int)
+
+    def play(self, move, color):
+        self.grid[move] = color
 
     def __getitem__(self, key):
         return self.grid[key]
@@ -31,8 +36,11 @@ class Board():
         grid[self.grid < 0] = u'\u26AA'
         grid[self.grid > 0] = u'\u26AB'
 
-        # Convert to string.
-        string = "\n".join([" ".join(row) for row in grid])
+        cols = "ABCDEFGHJKLMNOPQRST"[:self.size]
+        string = "  " + " ".join(list(cols))
+        for i, row in enumerate(grid):
+            string += "\n{:2d}".format(i+1)
+            string += " ".join(row)
         return string
 
 if __name__ == "__main__":
