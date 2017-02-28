@@ -5,6 +5,7 @@ BLACK = 1
 WHITE = -1
 COLUMNS = "ABCDEFGHJKLMNOPQRST"
 
+
 class Engine():
     def __init__(self, size=19):
         self.size = size
@@ -12,13 +13,6 @@ class Engine():
         self.libs = np.zeros((self.size, self.size), dtype=int)
         self.last_move = None
         self.ko = None
-
-    def gen_move(self, color):
-        # TODO: neural net stuff.
-        while True:
-            move = tuple(np.random.randint(self.size, size=2))
-            if self.legal(move, color):
-                return move
 
     def legal(self, move, color):
         if move is self.ko:
@@ -60,8 +54,8 @@ class Engine():
         grid[1:-1, -1] = u'\u2524'
         grid[-1, 1:-1] = u'\u2534'
         # Stones.
-        grid[self.board < 0] = u'\u26AA'
-        grid[self.board > 0] = u'\u26AB'
+        grid[self.board == BLACK] = u'\u25EF'
+        grid[self.board == WHITE] = u'\u2B24'
         # Build the string.
         cols = COLUMNS[:self.size]
         string = "   " + " ".join(list(cols))
@@ -74,11 +68,13 @@ class Engine():
 
 if __name__ == "__main__":
     engine = Engine()
+    from bot import Bot
+    bot = Bot(engine, WHITE)
     while True:
         print unicode(engine)
         # Player picks a move.
         string = raw_input('\nMove: ')
         engine.play(engine.move_from_string(string), BLACK)
         # Bot responds.
-        move = engine.gen_move(WHITE)
+        move = bot.act()
         engine.play(move, WHITE)
