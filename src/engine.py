@@ -53,6 +53,9 @@ class Engine():
         grid[0, 1:-1] = u'\u252C'
         grid[1:-1, -1] = u'\u2524'
         grid[-1, 1:-1] = u'\u2534'
+        # Star points.
+        if self.size == 19:
+            grid[3:16:6, 3:16:6] = u'\u25CD'
         # Stones.
         grid[self.board == BLACK] = u'\u25EF'
         grid[self.board == WHITE] = u'\u2B24'
