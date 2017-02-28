@@ -14,24 +14,27 @@ class Network():
         self.graph = tf.Graph()
         with self.graph.as_default():
             # Inputs.
-            self.input_tensor = tf.placeholder('float',
+            self.x = tf.placeholder('float',
                     [None, size, size, 1], name='input')
-            self.input_flat = tf.reshape(self.input_tensor, [-1, size*size])
-            # TODO: Hidden layers.
-            # Output.
-            init = tf.truncated_normal([size*size, size*size], stddev=0.1)
-            W = tf.Variable(init, 'W_final')
-            init = tf.constant(0.1, shape=[size*size])
-            b = tf.Variable(init, 'b_final')
-            out = tf.matmul(self.input_flat, W) + b
-            out = tf.nn.softmax(out)
-            self.output = tf.reshape(out, [-1, size, size, 1])
+            x_ = tf.reshape(self.x, [-1, size*size])
+            y_ = self._linear(x_, size*size, label='_final')
+            y_ = tf.nn.softmax(y_)
+            self.y = tf.reshape(y_, [-1, size, size, 1])
+
+    def _linear(self, x, d_out, label=''):
+            """ Create linear layer on x with output dim d_out. """
+            d_in = x.get_shape()[-1].value
+            W_init = tf.truncated_normal([d_in, d_out], stddev=0.1)
+            W = tf.Variable(W_init, 'W_'+label)
+            b_init = tf.constant(0.1, shape=[d_out])
+            b = tf.Variable(b_init, 'b_'+label)
+            y = tf.matmul(x, W) + b
+            return y
 
     def run(self, board):
-        feed_dict = {self.input_tensor: board[None, :, :, None]}
-        out = self.sess.run(self.output, feed_dict=feed_dict)
-        out = out.squeeze()
-        return np.unravel_index(out.argmax(), out.shape)
+        feed_dict = {self.x: board[None, :, :, None]}
+        y = self.sess.run(self.y, feed_dict=feed_dict).squeeze()
+        return np.unravel_index(y.argmax(), y.shape)
 
 class Bot():
     def __init__(self, engine, color):
