@@ -4,6 +4,7 @@ EMPTY = 0
 BLACK = 1
 WHITE = -1
 COLUMNS = "ABCDEFGHJKLMNOPQRST"
+PASS = ()
 
 
 class Engine():
@@ -15,7 +16,13 @@ class Engine():
         self.ko = None
         # TODO: keep track of prisoners?
 
+    def score(self):
+        # TODO: Better scoring system.
+        return self.board.sum()
+
     def legal(self, move, color):
+        if move == PASS:
+            return True
         if self.board[move] != EMPTY:
             return False
         if move is self.ko:
@@ -34,10 +41,13 @@ class Engine():
     def play(self, move, color):
         # TODO: Try other data structures, compare speed.
         assert self.legal(move, color)
-        # Place the stone and update flags.
-        self.board[move] = color
         self.ko = self.prev_move
         self.prev_move = move
+        # If passed we're done.
+        if move == PASS:
+            return
+        # Place the stone and update flags.
+        self.board[move] = color
         # Flood the loss of liberties, keep track of uncounted stones.
         visited = np.zeros((self.size, self.size), dtype=bool)
         affected = set([move])
@@ -143,6 +153,9 @@ class Engine():
         grid[1:-1, -1] = u'\u2524'
         grid[-1, 1:-1] = u'\u2534'
         # Star points.
+        if self.size == 9:
+            grid[4,4] = u'\u25CD'
+            grid[2::4, 2::4] = u'\u25CD'
         if self.size == 19:
             grid[3:16:6, 3:16:6] = u'\u25CD'
         # Stones.

@@ -1,31 +1,45 @@
 from engine import *
-from bot import Bot
+from IPython import embed
 
-def gen_move(engine, color):
-    prev = engine.string_from_move(engine.prev_move)
-    query = "\nLast move: {}\nYour move: ".format(prev)
-    while True:
-        print unicode(engine)
-        string = raw_input(query)
-        if string == 'debug':
-            from IPython import embed; embed()
-        try:
-            move = engine.move_from_string(string)
-            assert engine.legal(move, color)
-            return move
-        except:
-            print "Illegal move! Try again."
-            continue
+class CLI():
+    def __init__(self):
+        self.query = "\nLast move: {}\nYour move: "
 
-def interactive_session():
-    engine = Engine()
-    bot = Bot()
+    def gen_move(self, engine, color):
+        prev = engine.prev_move
+        prev = "" if not prev else engine.string_from_move(prev)
+        while True:
+            print unicode(engine)
+            string = raw_input(self.query.format(prev))
+            if string == 'debug':
+                embed()
+            if string == '':
+                return PASS
+            try:
+                move = engine.move_from_string(string)
+                assert engine.legal(move, color)
+                return move
+            except:
+                print "Illegal move! Try again."
+
+def rollout(black, white, size=19):
+    engine = Engine(size)
     while True:
-        # Bot plays black.
-        bot.act(engine, BLACK)
-        # Human plays white.
-        move = gen_move(engine, WHITE)
+        # Black plays a move.
+        move = black.gen_move(engine, BLACK)
+        engine.play(move, BLACK)
+        # White plays a move.
+        move = white.gen_move(engine, WHITE)
         engine.play(move, WHITE)
+        # Check if both players passed.
+        if engine.ko == engine.prev_move:
+            return engine
+
 
 if __name__ == "__main__":
-    interactive_session()
+    from bot import Bot
+    bot = Bot(size=9)
+    human = CLI()
+    engine = rollout(human, bot, size=9)
+    print "Score: {}".format(engine.score())
+    embed()

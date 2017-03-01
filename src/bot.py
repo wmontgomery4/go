@@ -12,12 +12,16 @@ class Network():
             self.sess = tf.Session()
             self.sess.run(tf.global_variables_initializer())
 
-    def _init_graph(self):
+    def _init_graph(self, hidden_layers=[16, 16]):
         self.graph = tf.Graph()
         with self.graph.as_default():
             shape = [None, self.size, self.size, 1]
             self.x = tf.placeholder('float', shape, name='input')
-            self.y = self._conv2d(self.x, 1, label='_final')
+            y = self.x
+            for l, k in enumerate(hidden_layers):
+                y = self._conv2d(y, k, label=str(l))
+                y = tf.nn.elu(y)
+            self.y = self._conv2d(y, 1, label='_final')
             # TODO: Mask out non-empty spaces?
 
     def _conv2d(self, x, k_out, size=3, stride=1, label=''):
@@ -53,6 +57,8 @@ class Bot():
         self.net = Network(size)
 
     def gen_move(self, engine, color):
+        if engine.prev_move == PASS:
+            return PASS
         y = self.net.forward(engine.board, color)
         soft = np.exp(y)
         idxs = np.argsort(-soft, axis=None)
@@ -60,10 +66,7 @@ class Bot():
             move = np.unravel_index(idx, y.shape)
             if engine.legal(move, color):
                 return move
-
-    def act(self, engine, color):
-        move = self.gen_move(engine, color)
-        engine.play(move, color)
+        return PASS
 
 
 if __name__ == '__main__':
