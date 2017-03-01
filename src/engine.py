@@ -25,7 +25,8 @@ class Engine():
             return True
         if self.board[move] != EMPTY:
             return False
-        if move is self.ko:
+        # TODO: Fix ko rule.
+        if move == self.ko:
             return False
         # Suicide rule.
         neighbors = self._neighbors(move)
