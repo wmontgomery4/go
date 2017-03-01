@@ -5,14 +5,13 @@ BLACK = 1
 WHITE = -1
 COLUMNS = "ABCDEFGHJKLMNOPQRST"
 
-from bot import Bot
 
 class Engine():
     def __init__(self, size=19):
         self.size = size
         self.board = np.zeros((self.size, self.size), dtype=int)
         self.libs = np.zeros((self.size, self.size), dtype=int)
-        self.last_move = None
+        self.prev_move = None
         self.ko = None
         # TODO: keep track of prisoners?
 
@@ -29,8 +28,8 @@ class Engine():
         assert self.legal(move, color)
         # Place the stone and update flags.
         self.board[move] = color
-        self.ko = self.last_move
-        self.last_move = move
+        self.ko = self.prev_move
+        self.prev_move = move
         # Flood the loss of liberties, keep track of uncounted stones.
         visited = np.zeros((self.size, self.size), dtype=bool)
         affected = set([move])
@@ -92,8 +91,13 @@ class Engine():
         visited[position] = True
         self._flood(self._count, position, color, visited, counted)
 
+    def string_from_move(self, move):
+        row, col = move
+        number = str(self.size - row)
+        letter = COLUMNS[col]
+        return letter + number
+
     def move_from_string(self, string):
-        # TODO: error handling
         letter = string[0]
         number = string[1:]
         row = self.size - int(number)
@@ -133,35 +137,19 @@ class Engine():
         string += "\n   " + " ".join(list(cols))
         return string
 
-def interactive_session():
-    engine = Engine()
-    bot = Bot(engine, WHITE)
-    while True:
-        print unicode(engine)
-        # Player picks a move.
-        string = raw_input('\nMove: ')
-        if string == 'libs':
-            # For debugging.
-            print engine.libs
-            continue
-        try:
-            engine.play(engine.move_from_string(string), BLACK)
-        except:
-            print "Illegal move! Try again."
-            continue
-        # Bot responds.
-        move = bot.act()
-        engine.play(move, WHITE)
+    def print_debug(self):
+        print unicode(self)
+        print self.libs
+
 
 if __name__ == "__main__":
-    interactive_session()
-
-#    engine = Engine()
-#    engine.play(engine.move_from_string("D4"), WHITE)
-#    engine.play(engine.move_from_string("D5"), WHITE)
-#    engine.play(engine.move_from_string("D3"), BLACK)
-#    engine.play(engine.move_from_string("C4"), BLACK)
-#    engine.play(engine.move_from_string("C5"), BLACK)
-#    engine.play(engine.move_from_string("E4"), BLACK)
-#    engine.play(engine.move_from_string("E5"), BLACK)
-#    print unicode(engine)
+    engine = Engine()
+    # Almost dead turtle shape.
+    engine.play(engine.move_from_string("D4"), WHITE)
+    engine.play(engine.move_from_string("D5"), WHITE)
+    engine.play(engine.move_from_string("D3"), BLACK)
+    engine.play(engine.move_from_string("C4"), BLACK)
+    engine.play(engine.move_from_string("C5"), BLACK)
+    engine.play(engine.move_from_string("E4"), BLACK)
+    engine.play(engine.move_from_string("E5"), BLACK)
+    engine.print_debug()
