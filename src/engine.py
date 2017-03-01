@@ -20,8 +20,16 @@ class Engine():
             return False
         if move is self.ko:
             return False
-        # TODO: Suicide rule.
-        return True
+        # Suicide rule.
+        neighbors = self._neighbors(move)
+        for p in neighbors:
+            if self.board[p] == EMPTY:
+                return True
+            elif self.board[p] == -color and self.libs[p] == 1:
+                return True
+            elif self.board[p] == color and self.libs[p] > 1:
+                return True
+        return False
 
     def play(self, move, color):
         # TODO: Try other data structures, compare speed.
@@ -44,6 +52,19 @@ class Engine():
             self._count(position, color, visited, counted)
             self.libs[visited] = len(counted)
             all_visited += visited
+
+    def _neighbors(self, position):
+        r, c = position
+        neighbors = []
+        if r > 0:
+            neighbors.append((r-1, c))
+        if r < self.size - 1:
+            neighbors.append((r+1, c))
+        if c > 0:
+            neighbors.append((r, c-1))
+        if c < self.size - 1:
+            neighbors.append((r, c+1))
+        return neighbors
 
     def _flood(self, fn, position, *args):
         r, c = position
