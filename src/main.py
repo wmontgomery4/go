@@ -1,3 +1,4 @@
+import sys
 from engine import *
 from IPython import embed
 
@@ -6,14 +7,14 @@ class CLI():
         self.query = "\nLast move: {}\nYour move: "
 
     def gen_move(self, engine, color):
-        prev = engine.prev_move
-        prev = "" if not prev else engine.string_from_move(prev)
+        last = engine.last_move
+        last = "" if not last else engine.string_from_move(last)
         while True:
             print unicode(engine)
-            string = raw_input(self.query.format(prev))
+            string = raw_input(self.query.format(last))
             if string == 'debug':
                 embed()
-            if string == '':
+            elif string == '':
                 return PASS
             try:
                 move = engine.move_from_string(string)
@@ -22,24 +23,26 @@ class CLI():
             except:
                 print "Illegal move! Try again."
 
-def rollout(black, white, size=19):
-    engine = Engine(size)
-    while True:
+def rollout(engine, black, white, moves=500):
+    for i in range(moves // 2):
         # Black plays a move.
         move = black.gen_move(engine, BLACK)
-        engine.play(move, BLACK)
+        engine.make_move(move, BLACK)
         # White plays a move.
         move = white.gen_move(engine, WHITE)
-        engine.play(move, WHITE)
+        engine.make_move(move, WHITE)
         # Check if both players passed.
-        if engine.ko == engine.prev_move:
-            return engine
+        if engine.ko == engine.last_move:
+            break
+    return engine
 
 
 if __name__ == "__main__":
-    from bot import Bot
-    bot = Bot(size=9)
     human = CLI()
-    engine = rollout(human, bot, size=9)
+    size = int(sys.argv[1]) if len(sys.argv) > 1 else 19
+    from bot import Bot
+    bot = Bot(size)
+    engine = Engine(size)
+    rollout(engine, human, bot)
     print "Score: {}".format(engine.score())
     embed()

@@ -57,7 +57,7 @@ class Bot():
         self.net = Network(size)
 
     def gen_move(self, engine, color):
-        if engine.prev_move == PASS:
+        if engine.last_move == PASS:
             return PASS
         y = self.net.forward(engine.board, color)
         soft = np.exp(y)
