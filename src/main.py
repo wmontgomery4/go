@@ -27,13 +27,14 @@ def rollout(engine, black, white, moves=500):
     for i in range(moves // 2):
         # Black plays a move.
         move = black.gen_move(engine, BLACK)
+        if move == engine.last_move == PASS:
+            break
         engine.make_move(move, BLACK)
         # White plays a move.
         move = white.gen_move(engine, WHITE)
-        engine.make_move(move, WHITE)
-        # Check if both players passed.
-        if engine.ko == engine.last_move:
+        if move == engine.last_move == PASS:
             break
+        engine.make_move(move, WHITE)
     return engine
 
 

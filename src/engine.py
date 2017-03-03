@@ -45,7 +45,6 @@ class Engine():
     def make_move(self, move, color):
         # TODO: Try other data structures, compare speed.
         assert self.legal(move, color)
-        self.ko = self.last_move
         self.last_move = move
         # If passed we're done.
         if move == PASS:
