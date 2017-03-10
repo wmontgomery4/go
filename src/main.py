@@ -1,27 +1,10 @@
 import sys
-from engine import *
 from IPython import embed
 
-class CLI():
-    def __init__(self):
-        self.query = "\nLast move: {}\nYour move: "
-
-    def gen_move(self, engine, color):
-        last = engine.last_move
-        last = "" if not last else engine.string_from_move(last)
-        while True:
-            print unicode(engine)
-            string = raw_input(self.query.format(last))
-            if string == 'debug':
-                embed()
-            elif string == '':
-                return PASS
-            try:
-                move = engine.move_from_string(string)
-                assert engine.legal(move, color)
-                return move
-            except:
-                print "Illegal move! Try again."
+from engine import *
+from data_utils import *
+from bot import Bot
+from cli import CLI
 
 def rollout(engine, black, white, moves=500):
     for i in range(moves // 2):
@@ -39,11 +22,32 @@ def rollout(engine, black, white, moves=500):
 
 
 if __name__ == "__main__":
+    engine = Engine()
     human = CLI()
-    size = int(sys.argv[1]) if len(sys.argv) > 1 else 19
-    from bot import Bot
-    bot = Bot(size)
-    engine = Engine(size)
-    rollout(engine, human, bot)
-    print "Score: {}".format(engine.score())
-    embed()
+
+    # Load training data.
+    # TODO: Storing/loading bots.
+    arch = [(64, 5, 1)] + [(64, 3, 1)]*7
+    size = 19
+    dirname = PRO_DIRNAME
+#    arch = [(64, 3, 3)]*6
+#    size = 9
+#    dirname = MINIGO_DIRNAME
+
+    boards = np.empty((0, size, size))
+    labels = np.empty(0, dtype=int)
+    for fname in os.listdir(dirname):
+        if not fname.endswith(".sgf"):
+            continue
+        fname = dirname + fname
+        print "Loading {}".format(fname)
+        bs, ls = data_from_sgf(fname)
+        boards = np.concatenate((boards, bs))
+        labels = np.concatenate((labels, ls))
+
+    # Create bot and train on data.
+    bot = Bot(size, arch)
+    bot.train(boards, labels, batch_size=64, lr=1e-3)
+
+    # Interactive session with bot.
+    rollout(engine, bot, human)

@@ -1,8 +1,13 @@
-import os, re
+import os, re, glob
+import pandas as pd
 from engine import *
+from data_utils import *
 
-MINIGO_DIR = './data/misc/9x9/Minigo/'
-PRO_DIR = './data/pro/2014/01/'
+MINIGO_DIRNAME = './data/misc/9x9/Minigo/'
+PRO_DIRNAME = './data/pro/2014/01/'
+
+MINIGO_STORE = './data/minigo.h5'
+PRO_STORE = './data/pro.h5'
 
 SGF_SIZE_REGEX = r'SZ\[(\d*)\]'
 SGF_MOVE_REGEX = r';([BW])\[([a-t])([a-t])\]'
@@ -42,30 +47,10 @@ def data_from_sgf(fname):
         labels[t] = row*size + col
     return boards, labels
 
+def save_data(fname, game_id, boards, labels):
+    df = pd.Dataframe
+    with pd.HDFStore(fname) as store:
+        pass
 
 if __name__ == '__main__':
-    arch = [(3, 64)]*10
-    size = 19
-    dirname = PRO_DIR
-#    arch = [(3, 64)]*10
-#    size = 9
-#    dirname = MINIGO_DIR
-    boards = np.empty((0, size, size))
-    labels = np.empty(0, dtype=int)
-    for fname in os.listdir(dirname):
-        if not fname.endswith(".sgf"):
-            continue
-        fname = dirname + fname
-        print "Loading {}".format(fname)
-        bs, ls = data_from_sgf(fname)
-        boards = np.concatenate((boards, bs))
-        labels = np.concatenate((labels, ls))
-
-    from bot import Bot
-    bot = Bot(size, arch)
-    bot.train(boards, labels, batch_size=128, epochs=0.1, lr=1e-4)
-
-    from main import *
-    human = CLI()
-    engine = Engine(size)
-    rollout(engine, bot, human)
+    from IPython import embed; embed()
