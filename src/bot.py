@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from engine import *
+from data_utils import *
 
 
 class Bot():
@@ -16,24 +17,22 @@ class Bot():
     def _init_graph(self):
         self.graph = tf.Graph()
         with self.graph.as_default():
-            # Board input variable.
+            # Input variable.
             self.x = tf.placeholder(tf.float32,
-                    [None, self.size, self.size, 1])
+                    [None, self.size, self.size, NUM_FEATURES])
             # Add on the layers.
             y = self.x
-            for l, (k_out, size, rate) in enumerate(self.arch):
+            for (k_out, size, rate) in self.arch:
                 y = self._conv2d(y, k_out, size, rate, tf.nn.relu)
-            y = self._conv2d(y, 1, 1, 1)
-            self.y = tf.reshape(y, [-1, self.size*self.size])
-            # TODO: Account for symmetries.
+            y = self._conv2d(y, 1, 1, 1) # (?, size, size, 1)
+            self.y = tf.reshape(y, [-1, self.size, self.size])
             # Set up training.
-            self.learning_rate = tf.placeholder(tf.float32)
+            y_ = tf.reshape(self.y, [-1, self.size*self.size])
             self.labels = tf.placeholder(tf.int32, [None])
             self.loss = tf.reduce_mean(
                     tf.nn.sparse_softmax_cross_entropy_with_logits(
-                            logits=self.y, labels=self.labels))
-            solver = tf.train.MomentumOptimizer(self.learning_rate, 0.9,
-                    use_nesterov=True)
+                            logits=y_, labels=self.labels))
+            solver = tf.train.AdamOptimizer()
             self.train_op = solver.minimize(self.loss)
             return
 
@@ -50,8 +49,9 @@ class Bot():
     def gen_move(self, engine, color):
         if engine.last_move == PASS:
             return PASS
-        x = color*engine.board[None, :, :, None]
-        y = self.sess.run(self.y, feed_dict={self.x: x})
+        images = d8_forward(engine.get_features(color))
+        y = self.sess.run(self.y, feed_dict={self.x: images})
+        y = d8_backward(y)
         idxs = np.argsort(-y, axis=None)
         for idx in idxs:
             move = (idx // self.size, idx % self.size)
@@ -59,16 +59,15 @@ class Bot():
                 return move
         return PASS
 
-    def train(self, boards, labels, batch_size=256, lr=0.1):
-        N = boards.shape[0]
+    def train(self, images, labels, batch_size=64):
+        N = images.shape[0]
         # Shuffle data.
         idxs = np.random.permutation(N)
-        x = boards[idxs, :, :, None]
-        labels = labels[idxs]
         iters = N // batch_size
         for i in range(iters):
-            idx = slice(i*batch_size, (i+1)*batch_size)
+            idx = idxs[i*batch_size:(i+1)*batch_size]
+            x = images[idx]
+            y = labels[idx]
             loss, _ = self.sess.run([self.loss, self.train_op],
-                    feed_dict={self.x: x[idx], self.labels: labels[idx],
-                            self.learning_rate:lr})
+                    feed_dict={self.x: x, self.labels: y})
             print "Batch {}/{}, Loss: {}".format(i, iters, loss)

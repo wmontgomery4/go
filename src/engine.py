@@ -6,6 +6,7 @@ WHITE = -1
 COLUMNS = "ABCDEFGHJKLMNOPQRST"
 PASS = ()
 
+NUM_FEATURES = 3
 
 class Engine():
     def __init__(self, size=19):
@@ -124,6 +125,13 @@ class Engine():
             return
         visited[position] = True
         self._flood(self._count, position, color, visited, counted)
+
+    def get_features(self, color):
+        image = np.zeros((NUM_FEATURES, self.size, self.size))
+        image[0] = self.board == color
+        image[1] = self.board == -color
+        image[2] = self.board == EMPTY
+        return image.transpose([1,2,0])
 
     def string_from_move(self, move):
         row, col = move
