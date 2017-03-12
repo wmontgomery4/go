@@ -1,12 +1,13 @@
-import os, re, glob
+import sys, os, re, glob
+import h5py
 import tensorflow as tf
 from engine import *
 
-MINIGO_DIRNAME = './data/misc/9x9/Minigo/'
-PRO_DIRNAME = './data/pro/2014/01/'
+MINIGO_SGF = './data/misc/9x9/Minigo/'
+PRO_SGF = './data/pro/2014/'
 
-MINIGO_STORE = './data/minigo.h5'
-PRO_STORE = './data/pro.h5'
+MINIGO_H5 = './data/minigo.h5'
+PRO_H5 = './data/pro.h5'
 
 SGF_SIZE_REGEX = r'SZ\[(\d*)\]'
 SGF_MOVE_REGEX = r';([BW])\[([a-t])([a-t])\]'
@@ -86,20 +87,47 @@ def data_from_sgf(fname):
         if col >= 19 or row >= 19:
             continue
         # Update engine.
-        try:
-            engine.make_move(move, color)
-        except:
-            from IPython import embed; embed()
+        engine.make_move(move, color)
         # Store updated features and move, including flips/rotations.
         image = engine.get_features(color)
         images[8*t:8*(t+1)] = d8_forward(image)
         labels[8*t:8*(t+1)] = d8_forward_labels(move, size)
     return images, labels
 
-def save_data(fname, game_id, images, labels):
-    df = pd.Dataframe
-    with pd.HDFStore(fname) as store:
-        pass
+def init_h5(fname, size):
+    # Initialize h5 database.
+    db = h5py.File(fname, 'x')
+    images = db.create_dataset("images",
+            data=np.empty((0, size, size, NUM_FEATURES)),
+            maxshape=(None, size, size, NUM_FEATURES))
+    labels = db.create_dataset("labels",
+            data=np.empty((0,)), maxshape=(None,))
+    return db
 
-if __name__ == '__main__':
-    from IPython import embed; embed()
+def add_sgf(fname, db):
+    print "Adding {}".format(fname)
+    # Extract game record from sgf.
+    new_images, new_labels = data_from_sgf(fname)
+    M, s1, _, f1 = new_images.shape
+    # Add new data to database.
+    labels = db["labels"]
+    images = db["images"]
+    N, s2, _, f2 = images.shape
+    assert s1 == s2 and f1 == f2
+    images.resize((N+M, s1, s1, f1))
+    images[N:N+M] = new_images
+    labels.resize((N+M,))
+    labels[N:N+M] = new_labels
+    db.flush()
+
+if __name__ == "__main__":
+    # Create pro database.
+    db = init_h5(PRO_H5, 19)
+    dirname = PRO_SGF
+    # Add all of the data to the h5 store.
+    for (dirpath, dirnames, fnames) in os.walk(dirname):
+        for fname in fnames:
+            if not fname.endswith(".sgf"):
+                continue
+            fname = os.path.join(dirpath, fname)
+            add_sgf(fname, db)

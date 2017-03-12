@@ -25,7 +25,9 @@ class Bot():
             for (k_out, size, rate) in self.arch:
                 y = self._conv2d(y, k_out, size, rate, tf.nn.relu)
             y = self._conv2d(y, 1, 1, 1) # (?, size, size, 1)
-            self.y = tf.reshape(y, [-1, self.size, self.size])
+            y = tf.reshape(y, [-1, self.size, self.size])
+            b = tf.Variable(0.1*tf.zeros([self.size, self.size]))
+            self.y = y + b
             # Set up training.
             y_ = tf.reshape(self.y, [-1, self.size*self.size])
             self.labels = tf.placeholder(tf.int32, [None])
@@ -59,15 +61,15 @@ class Bot():
                 return move
         return PASS
 
-    def train(self, images, labels, batch_size=64):
+    def train(self, images, labels, batch_size=16, epochs=1.0):
         N = images.shape[0]
         # Shuffle data.
-        idxs = np.random.permutation(N)
-        iters = N // batch_size
+        iters = int(epochs * N / batch_size)
         for i in range(iters):
-            idx = idxs[i*batch_size:(i+1)*batch_size]
-            x = images[idx]
-            y = labels[idx]
+            idx = np.random.choice(N, batch_size, replace=False)
+            idx.sort()
+            x = images[idx.tolist()]
+            y = labels[idx.tolist()]
             loss, _ = self.sess.run([self.loss, self.train_op],
                     feed_dict={self.x: x, self.labels: y})
             print "Batch {}/{}, Loss: {}".format(i, iters, loss)
