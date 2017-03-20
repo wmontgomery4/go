@@ -8,40 +8,79 @@ PRO_H5 = './data/pro.h5'
 SGF_SIZE_REGEX = r'SZ\[(\d*)\]'
 SGF_MOVE_REGEX = r';([BW])\[([a-t])([a-t])\]'
 
-def d8_forward(image):
-    # Get all flips/rotations of the image.
-    shape = (8,) + image.shape
-    images = np.empty(shape, dtype=image.dtype)
-    images[0] = image
-    images[1] = np.rot90(images[0])
-    images[2] = np.rot90(images[1])
-    images[3] = np.rot90(images[2])
-    images[4] = np.flipud(images[0])
-    images[5] = np.flipud(images[1])
-    images[6] = np.flipud(images[2])
-    images[7] = np.flipud(images[3])
-    return images
+NUM_FEATURES = 3
 
-def d8_forward_labels(move, size):
-    # Helper functions to mimic numpy versions.
-    def rot90(move, size):
-        row, col = move
-        return (size - col - 1, row)
-    def flipud(move, size):
-        row, col = move
-        return (size - row - 1, col)
-    # Get all flips/rotations of the move.
-    moves = [move]
-    moves.append(rot90(moves[0], size))
-    moves.append(rot90(moves[1], size))
-    moves.append(rot90(moves[2], size))
-    moves.append(flipud(moves[0], size))
-    moves.append(flipud(moves[1], size))
-    moves.append(flipud(moves[2], size))
-    moves.append(flipud(moves[3], size))
-    # Flatten to get the labels.
-    labels = [row*size + col for (row, col) in moves]
-    return labels
+def input_features(board):
+    shape = board.shape + (NUM_FEATURES,)
+    image = np.zeros(shape)
+    image[..., 0] = board > EMPTY
+    image[..., 1] = board < EMPTY
+    image[..., 2] = board == EMPTY
+    return image
+
+def rot90_labels(labels, size):
+    rows = labels // size
+    cols = labels % size
+    return (size - cols - 1)*size + rows
+
+def flipud_labels(labels, size):
+    rows = labels // size
+    cols = labels % size
+    return (size - rows - 1)*size + cols
+
+def augment_data(boards, labels):
+    idx = np.random.choice(8)
+    _, size, _ = boards.shape
+    if idx == 0:
+        pass
+    elif idx == 1:
+        boards = np.rot90(boards, axes=(1,2))
+        labels = rot90_labels(labels, size)
+    elif idx == 2:
+        boards = np.rot90(boards, k=2, axes=(1,2))
+        labels = rot90_labels(labels, size)
+        labels = rot90_labels(labels, size)
+    elif idx == 3:
+        boards = np.rot90(boards, k=-1, axes=(1,2))
+        labels = rot90_labels(labels, size)
+        labels = rot90_labels(labels, size)
+        labels = rot90_labels(labels, size)
+    elif idx == 4:
+        boards = np.flip(boards, axis=1)
+        labels = flipud_labels(labels, size)
+    elif idx == 5:
+        boards = np.rot90(boards, axes=(1,2))
+        boards = np.flip(boards, axis=1)
+        labels = rot90_labels(labels, size)
+        labels = flipud_labels(labels, size)
+    elif idx == 6:
+        boards = np.rot90(boards, k=2, axes=(1,2))
+        boards = np.flip(boards, axis=1)
+        labels = rot90_labels(labels, size)
+        labels = rot90_labels(labels, size)
+        labels = flipud_labels(labels, size)
+    elif idx == 7:
+        boards = np.rot90(boards, k=-1, axes=(1,2))
+        boards = np.flip(boards, axis=1)
+        labels = rot90_labels(labels, size)
+        labels = rot90_labels(labels, size)
+        labels = rot90_labels(labels, size)
+        labels = flipud_labels(labels, size)
+    return input_features(boards), labels
+
+def d8_forward(board):
+    # Get all flips/rotations of the board.
+    shape = (8,) + board.shape
+    boards = np.empty(shape, dtype=board.dtype)
+    boards[0] = board
+    boards[1] = np.rot90(boards[0])
+    boards[2] = np.rot90(boards[1])
+    boards[3] = np.rot90(boards[2])
+    boards[4] = np.flipud(boards[0])
+    boards[5] = np.flipud(boards[1])
+    boards[6] = np.flipud(boards[2])
+    boards[7] = np.flipud(boards[3])
+    return boards
 
 def d8_backward(images):
     # Revert all flipped/rotated images back to original space.
@@ -70,8 +109,8 @@ def data_from_sgf(fname):
     matches = move_regex.findall(lines)
     # Play through the game and store the inputs/outputs.
     engine = Engine(size)
-    images = np.empty((8*len(matches), size, size, NUM_FEATURES))
-    labels = np.empty(8*len(matches), dtype=int)
+    boards = np.empty((len(matches), size, size))
+    labels = np.empty(len(matches), dtype=int)
     for t, match in enumerate(matches):
         # Convert sgf format to engine format.
         color, col, row = match
@@ -81,21 +120,21 @@ def data_from_sgf(fname):
         move = (row, col)
         # TODO: Handle weird passing case better.
         if col >= 19 or row >= 19:
-            continue
+            break
         # Store current image/label, including flips/rotations.
-        image = engine.get_features(color)
-        images[8*t:8*(t+1)] = d8_forward(image)
-        labels[8*t:8*(t+1)] = d8_forward_labels(move, size)
+        board = color*engine.board
+        boards[t] = board
+        labels[t] = row*size + col
         # Update engine.
         engine.make_move(move, color)
-    return images, labels
+    return boards, labels
 
 def init_h5(fname, size):
     # Initialize h5 database.
     db = h5py.File(fname, 'x')
-    images = db.create_dataset("images",
-            data=np.empty((0, size, size, NUM_FEATURES)),
-            maxshape=(None, size, size, NUM_FEATURES))
+    boards = db.create_dataset("boards",
+            data=np.empty((0, size, size)),
+            maxshape=(None, size, size))
     labels = db.create_dataset("labels",
             data=np.empty((0,)), maxshape=(None,))
     return db
@@ -103,15 +142,15 @@ def init_h5(fname, size):
 def add_sgf(fname, db):
     print "Adding {}".format(fname)
     # Extract game record from sgf.
-    new_images, new_labels = data_from_sgf(fname)
-    M, s1, _, f1 = new_images.shape
+    new_boards, new_labels = data_from_sgf(fname)
+    M, s1, _ = new_boards.shape
     # Add new data to database.
     labels = db["labels"]
-    images = db["images"]
-    N, s2, _, f2 = images.shape
-    assert s1 == s2 and f1 == f2
-    images.resize((N+M, s1, s1, f1))
-    images[N:N+M] = new_images
+    boards = db["boards"]
+    N, s2, _ = boards.shape
+    assert s1 == s2
+    boards.resize((N+M, s1, s1))
+    boards[N:N+M] = new_boards
     labels.resize((N+M,))
     labels[N:N+M] = new_labels
     db.flush()
@@ -120,7 +159,7 @@ if __name__ == "__main__":
     # Create pro database.
 #    db = init_h5(PRO_H5, 19)
     db = h5py.File(PRO_H5, 'r+')
-    dirname = './data/pro/2013/'
+    dirname = './data/pro/2014/'
     # Add all of the data to the h5 store.
     for (dirpath, dirnames, fnames) in os.walk(dirname):
         for fname in fnames:

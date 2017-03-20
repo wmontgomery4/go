@@ -1,4 +1,4 @@
-import os
+import os, re
 import string
 import numpy as np
 import tensorflow as tf
@@ -9,21 +9,30 @@ from data_utils import *
 DIRNAME = './bots/{}'
 CKPT_BASE = './bots/{}/checkpoint'
 CKPT_FULL = './bots/{}/checkpoint-{}'
+CKPT_STEP_REGEX = r'checkpoint-(\d+).meta'
 
 class Bot():
-    def __init__(self, size=19, name=None, global_step=None):
-        self.size = size
+    def __init__(self, name=None, global_step=None, size=19):
+        # Process arguments.
+        if name is None:
+            assert global_step is None
+            name = ''.join([string.lowercase[i] for i in
+                    np.random.choice(26, size=6)])
+            ckpt = None
+        else:
+            dirname = DIRNAME.format(name)
+            assert os.path.exists(dirname)
+            if global_step is None:
+                files = os.listdir(dirname)
+                step_regex = re.compile(CKPT_STEP_REGEX)
+                steps = step_regex.findall(''.join(files))
+                global_step = max(map(int, steps))
+            ckpt = CKPT_FULL.format(name, global_step)
+
+        # Store processed arguments.
         self.name = name
         self.global_step = global_step
-
-        # Create new bot or make sure checkpoint exists.
-        if self.name is None:
-            assert self.global_step is None
-            self.name = ''.join([string.lowercase[i] for i in
-                    np.random.choice(26, size=6)])
-        else:
-            assert self.global_step is not None
-            assert os.path.exists(DIRNAME.format(name))
+        self.size = size
 
         # Graph variables.
         self.graph = tf.Graph()
@@ -38,12 +47,11 @@ class Bot():
         # Begin the session.
         with self.graph.as_default():
             self.sess = tf.Session()
-            if self.global_step is None:
+            if ckpt is None:
                 self.sess.run(tf.global_variables_initializer())
                 self.global_step = 0
             else:
-                self.saver.restore(self.sess,
-                        CKPT_FULL.format(self.name, self.global_step))
+                self.saver.restore(self.sess, ckpt)
 
     def _build_graph(self):
         with self.graph.as_default():
@@ -52,13 +60,11 @@ class Bot():
                     [None, self.size, self.size, NUM_FEATURES])
             # Add on the layers.
             # TODO: Config instead of hardcoded?
-            y = self._conv2d(self.x, 64, 5)
-            y = tf.concat([self.x, y], axis=3)
+            y = self._conv2d(self.x, 64, 5, tf.nn.crelu)
             for i in range(3):
                 y = self._dense_block(y, 4, 24)
                 num_outputs = y.get_shape()[3] // 2
                 y = self._conv2d(y, num_outputs, 1)
-                y = tf.concat([self.x, y], axis=3)
             y = self._conv2d(y, 1, 1, activation_fn=None)
             y = tf.reshape(y, [-1, self.size, self.size])
             b = tf.Variable(-0.1*tf.zeros([self.size, self.size]))
@@ -92,8 +98,10 @@ class Bot():
     def gen_move(self, engine, color):
         if engine.last_move == PASS:
             return PASS
-        x = engine.get_features(color)
-        y = self._forward(x)
+        x = input_features(color*engine.board)
+        x = d8_forward(x)
+        y = self.sess.run(self.y, feed_dict={self.x: x})
+        y = d8_backward(y)
         idxs = np.argsort(-y, axis=None)
         for idx in idxs:
             move = (idx // self.size, idx % self.size)
@@ -101,28 +109,17 @@ class Bot():
                 return move
         return PASS
 
-    def _forward(self, x, use_symmetry=True):
-        if use_symmetry:
-            x = d8_forward(x)
-        else:
-            x = x[None, :, :, :]
-        y = self.sess.run(self.y, feed_dict={self.x: x})
-        if use_symmetry:
-            y = d8_backward(y)
-        return y.squeeze()
-
-    def train(self, images, labels, batch_size=16, epochs=1.0):
-        N = images.shape[0]
+    def train(self, boards, labels, batch_size=16, epochs=1.0):
+        N = boards.shape[0]
         iters = int(epochs * N / batch_size)
         for i in range(iters):
             # Pick random minibatch and train.
-            idx = np.random.choice(N, batch_size, replace=False)
-            idx.sort()
-            x = images[idx.tolist()]
-            y = labels[idx.tolist()]
+            batch = np.random.choice(N, batch_size, replace=False)
+            x, y = augment_data(boards[batch], labels[batch])
             loss, _ = self.sess.run([self.loss, self.minimize],
                     feed_dict={self.x: x, self.labels: y})
-            print "Batch {}/{}, Loss: {}".format(i, iters, loss)
+            print "{}, loss: {:f}, batch: {}/{}, step: {}".format(
+                    self.name, loss, i, iters, self.global_step)
             # Update global step and save periodically.
             self.global_step += 1
             if self.global_step % 25 == 0:

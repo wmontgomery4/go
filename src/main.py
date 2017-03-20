@@ -1,4 +1,4 @@
-import sys
+import sys, argparse
 import h5py
 from IPython import embed
 
@@ -23,20 +23,20 @@ def rollout(engine, black, white, moves=500):
 
 
 if __name__ == "__main__":
-    print "Starting"
-    human = CLI()
+    print "Parsing args"
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-n', '--name', default=None)
+    parser.add_argument('-t', '--global_step', default=None)
+    args = parser.parse_args()
 
-    # Create bot.
-    # TODO: Storing/loading bots.
-    bot = Bot()
+    print "Creating bot"
+    bot = Bot(name=args.name, global_step=args.global_step)
     engine = Engine()
 
-    # Create bot and train on data.
+    print "Loading data"
     db = h5py.File(PRO_H5, 'r')
-    images = db["images"]
-    labels = db["labels"]
-    print "Training {}".format(bot.name)
-    bot.train(images, labels)
+    boards = db["boards"][:]
+    labels = db["labels"][:]
 
-    # Interactive session with bot.
-    rollout(engine, bot, human)
+    print "Training {}".format(bot.name)
+    bot.train(boards, labels, epochs=8)
