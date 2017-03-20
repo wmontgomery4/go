@@ -3,10 +3,6 @@ import h5py
 import tensorflow as tf
 from engine import *
 
-MINIGO_SGF = './data/misc/9x9/Minigo/'
-PRO_SGF = './data/pro/2014/'
-
-MINIGO_H5 = './data/minigo.h5'
 PRO_H5 = './data/pro.h5'
 
 SGF_SIZE_REGEX = r'SZ\[(\d*)\]'
@@ -86,12 +82,12 @@ def data_from_sgf(fname):
         # TODO: Handle weird passing case better.
         if col >= 19 or row >= 19:
             continue
-        # Update engine.
-        engine.make_move(move, color)
-        # Store updated features and move, including flips/rotations.
+        # Store current image/label, including flips/rotations.
         image = engine.get_features(color)
         images[8*t:8*(t+1)] = d8_forward(image)
         labels[8*t:8*(t+1)] = d8_forward_labels(move, size)
+        # Update engine.
+        engine.make_move(move, color)
     return images, labels
 
 def init_h5(fname, size):
@@ -122,8 +118,9 @@ def add_sgf(fname, db):
 
 if __name__ == "__main__":
     # Create pro database.
-    db = init_h5(PRO_H5, 19)
-    dirname = PRO_SGF
+#    db = init_h5(PRO_H5, 19)
+    db = h5py.File(PRO_H5, 'r+')
+    dirname = './data/pro/2013/'
     # Add all of the data to the h5 store.
     for (dirpath, dirnames, fnames) in os.walk(dirname):
         for fname in fnames:

@@ -28,17 +28,14 @@ if __name__ == "__main__":
 
     # Create bot.
     # TODO: Storing/loading bots.
-    size = 19
-    arch = [(128, 5, 1)]
-    arch = [(128, 3, 1)]*8
-#    arch = [(128, 3, 2)]*6
-    bot = Bot(size, arch)
-    engine = Engine(size)
+    bot = Bot()
+    engine = Engine()
 
     # Create bot and train on data.
     db = h5py.File(PRO_H5, 'r')
     images = db["images"]
     labels = db["labels"]
+    print "Training {}".format(bot.name)
     bot.train(images, labels)
 
     # Interactive session with bot.
