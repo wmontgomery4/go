@@ -7,6 +7,7 @@ PRO_H5 = './data/pro.h5'
 
 SGF_SIZE_REGEX = r'SZ\[(\d*)\]'
 SGF_MOVE_REGEX = r';([BW])\[([a-t])([a-t])\]'
+SGF_TREE_REGEX = r'\(.*\)'
 
 NUM_FEATURES = 3
 
@@ -99,15 +100,21 @@ def data_from_sgf(fname):
     # Extract the sgf data.
     with open(fname) as f:
         lines = f.read()
-    size_regex = re.compile(SGF_SIZE_REGEX)
-    match = size_regex.search(lines)
+    # Ignore SGFs that have tree data.
+    # TODO: Handle tree data issue better.
+    # NOTE: Right now it throws out some okay games.
+    lines = lines.strip()
+    assert lines[0] == '(' and lines[-1] == ')'
+    lines = lines[1:-1]
+    assert not re.search(SGF_TREE_REGEX, lines, re.DOTALL)
+    # Extract size.
+    match = re.search(SGF_SIZE_REGEX, lines)
     if match:
         size = int(match.group(1))
     else:
         size = 19
-    move_regex = re.compile(SGF_MOVE_REGEX)
-    matches = move_regex.findall(lines)
     # Play through the game and store the inputs/outputs.
+    matches = re.findall(SGF_MOVE_REGEX, lines)
     engine = Engine(size)
     boards = np.empty((len(matches), size, size))
     labels = np.empty(len(matches), dtype=int)
@@ -119,8 +126,7 @@ def data_from_sgf(fname):
         row = ord(row) - ord('a')
         move = (row, col)
         # TODO: Handle weird passing case better.
-        if col >= 19 or row >= 19:
-            break
+        assert col < size and row < size
         # Store current image/label, including flips/rotations.
         board = color*engine.board
         boards[t] = board
@@ -136,7 +142,8 @@ def init_h5(fname, size):
             data=np.empty((0, size, size)),
             maxshape=(None, size, size))
     labels = db.create_dataset("labels",
-            data=np.empty((0,)), maxshape=(None,))
+            data=np.empty((0,)),
+            maxshape=(None,))
     return db
 
 def add_sgf(fname, db):
@@ -145,8 +152,8 @@ def add_sgf(fname, db):
     new_boards, new_labels = data_from_sgf(fname)
     M, s1, _ = new_boards.shape
     # Add new data to database.
-    labels = db["labels"]
     boards = db["boards"]
+    labels = db["labels"]
     N, s2, _ = boards.shape
     assert s1 == s2
     boards.resize((N+M, s1, s1))
@@ -155,15 +162,27 @@ def add_sgf(fname, db):
     labels[N:N+M] = new_labels
     db.flush()
 
-if __name__ == "__main__":
-    # Create pro database.
-#    db = init_h5(PRO_H5, 19)
-    db = h5py.File(PRO_H5, 'r+')
-    dirname = './data/pro/2014/'
-    # Add all of the data to the h5 store.
+def add_dir(dirname, db):
+    # Walk the directory and add all sgfs.
     for (dirpath, dirnames, fnames) in os.walk(dirname):
         for fname in fnames:
             if not fname.endswith(".sgf"):
                 continue
             fname = os.path.join(dirpath, fname)
-            add_sgf(fname, db)
+            try:
+                add_sgf(fname, db)
+            except:
+                print "{} seems broken, skipping".format(fname)
+                continue
+
+if __name__ == "__main__":
+    # Create pro database.
+    db = init_h5(PRO_H5, 19)
+    dirs = ['./data/pro/2000/',
+            './data/pro/2001/',
+            './data/pro/2013/',
+            './data/pro/2014/']
+    # Add all of the data to the h5 store.
+    for dirname in dirs:
+        add_dir(dirname, db)
+    db.close()
