@@ -26,10 +26,10 @@ if __name__ == "__main__":
     print "Parsing args"
     p = argparse.ArgumentParser()
     p.add_argument('-n', '--name', default=None)
-    p.add_argument('-t', '--train', action='store_true')
-    p.add_argument('-s', '--global_step', type=int, default=None)
-    p.add_argument('-d', '--data',  default=PRO_H5)
-    p.add_argument('-e', '--epochs', type=int, default=8)
+    p.add_argument('--train', action='store_true')
+    p.add_argument('--test', action='store_true')
+    p.add_argument('-t', '--global_step', type=int, default=None)
+    p.add_argument('-e', '--epochs', type=int, default=8.0)
     args = p.parse_args()
 
     print "Creating bot"
@@ -37,10 +37,21 @@ if __name__ == "__main__":
     engine = Engine()
 
     if args.train:
-        print "Loading data"
-        db = h5py.File(args.data, 'r')
-        boards = db["boards"][:]
+        print "Loading training data"
+        db = h5py.File('/tmp/train.h5', 'r')
+        #db = h5py.File(TRAIN_H5, 'r')
+        images = db["images"][:]
         labels = db["labels"][:]
 
         print "Training {}".format(bot.name)
-        bot.train(boards, labels, epochs=args.epochs)
+        bot.train(images, labels, epochs=args.epochs)
+
+    if args.test:
+        print "Loading testing data"
+        db = h5py.File(TEST_H5, 'r')
+        images = db["images"][:]
+        labels = db["labels"][:]
+
+        print "Testing {}".format(bot.name)
+        import IPython; IPython.embed()
+        bot.train(images, labels, epochs=args.epochs)

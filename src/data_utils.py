@@ -3,21 +3,29 @@ import h5py
 import tensorflow as tf
 from engine import *
 
-PRO_H5 = './data/pro.h5'
+TRAIN_H5 = './data/train.h5'
+VAL_H5 = './data/val.h5'
+TEST_H5 = './data/test.h5'
 
-SGF_SIZE_REGEX = r'SZ\[(\d*)\]'
-SGF_MOVE_REGEX = r';([BW])\[([a-t])([a-t])\]'
+# TODO: Add pass as possible output?
+SGF_MOVE_REGEX = r';([BW])\[([a-s])([a-s])\]'
 SGF_TREE_REGEX = r'\(.*\)'
+SGF_SIZE_REGEX = r'SZ\[(\d*)\]'
+SGF_HANDICAP_REGEX = r'HA\[(\d*)\]'
 
 NUM_FEATURES = 3
 
-def input_features(board):
-    shape = board.shape + (NUM_FEATURES,)
-    image = np.zeros(shape)
-    image[..., 0] = board > EMPTY
-    image[..., 1] = board < EMPTY
-    image[..., 2] = board == EMPTY
-    return image
+#########################
+## Input Feature Utils ##
+#########################
+
+def input_features(image):
+    shape = image.shape + (NUM_FEATURES,)
+    x = np.zeros(shape)
+    x[..., 0] = image > EMPTY
+    x[..., 1] = image < EMPTY
+    x[..., 2] = image == EMPTY
+    return x
 
 def rot90_labels(labels, size):
     rows = labels // size
@@ -29,59 +37,59 @@ def flipud_labels(labels, size):
     cols = labels % size
     return (size - rows - 1)*size + cols
 
-def augment_data(boards, labels):
+def augment_data(images, labels):
     idx = np.random.choice(8)
-    _, size, _ = boards.shape
+    _, size, _ = images.shape
     if idx == 0:
         pass
     elif idx == 1:
-        boards = np.rot90(boards, axes=(1,2))
+        images = np.rot90(images, axes=(1,2))
         labels = rot90_labels(labels, size)
     elif idx == 2:
-        boards = np.rot90(boards, k=2, axes=(1,2))
+        images = np.rot90(images, k=2, axes=(1,2))
         labels = rot90_labels(labels, size)
         labels = rot90_labels(labels, size)
     elif idx == 3:
-        boards = np.rot90(boards, k=-1, axes=(1,2))
+        images = np.rot90(images, k=-1, axes=(1,2))
         labels = rot90_labels(labels, size)
         labels = rot90_labels(labels, size)
         labels = rot90_labels(labels, size)
     elif idx == 4:
-        boards = np.flip(boards, axis=1)
+        images = np.flip(images, axis=1)
         labels = flipud_labels(labels, size)
     elif idx == 5:
-        boards = np.rot90(boards, axes=(1,2))
-        boards = np.flip(boards, axis=1)
+        images = np.rot90(images, axes=(1,2))
+        images = np.flip(images, axis=1)
         labels = rot90_labels(labels, size)
         labels = flipud_labels(labels, size)
     elif idx == 6:
-        boards = np.rot90(boards, k=2, axes=(1,2))
-        boards = np.flip(boards, axis=1)
+        images = np.rot90(images, k=2, axes=(1,2))
+        images = np.flip(images, axis=1)
         labels = rot90_labels(labels, size)
         labels = rot90_labels(labels, size)
         labels = flipud_labels(labels, size)
     elif idx == 7:
-        boards = np.rot90(boards, k=-1, axes=(1,2))
-        boards = np.flip(boards, axis=1)
+        images = np.rot90(images, k=-1, axes=(1,2))
+        images = np.flip(images, axis=1)
         labels = rot90_labels(labels, size)
         labels = rot90_labels(labels, size)
         labels = rot90_labels(labels, size)
         labels = flipud_labels(labels, size)
-    return input_features(boards), labels
+    return input_features(images), labels
 
-def d8_forward(board):
-    # Get all flips/rotations of the board.
-    shape = (8,) + board.shape
-    boards = np.empty(shape, dtype=board.dtype)
-    boards[0] = board
-    boards[1] = np.rot90(boards[0])
-    boards[2] = np.rot90(boards[1])
-    boards[3] = np.rot90(boards[2])
-    boards[4] = np.flipud(boards[0])
-    boards[5] = np.flipud(boards[1])
-    boards[6] = np.flipud(boards[2])
-    boards[7] = np.flipud(boards[3])
-    return boards
+def d8_forward(image):
+    # Get all flips/rotations of the image.
+    shape = (8,) + image.shape
+    images = np.empty(shape, dtype=image.dtype)
+    images[0] = image
+    images[1] = np.rot90(images[0])
+    images[2] = np.rot90(images[1])
+    images[3] = np.rot90(images[2])
+    images[4] = np.flipud(images[0])
+    images[5] = np.flipud(images[1])
+    images[6] = np.flipud(images[2])
+    images[7] = np.flipud(images[3])
+    return images
 
 def d8_backward(images):
     # Revert all flipped/rotated images back to original space.
@@ -96,17 +104,21 @@ def d8_backward(images):
     refls[7] = np.rot90(np.flipud(images[7]))
     return refls.mean(axis=0)
 
+#############################
+## Data Extraction/Storage ##
+#############################
+
 def data_from_sgf(fname):
     # Extract the sgf data.
     with open(fname) as f:
         lines = f.read()
-    # Ignore SGFs that have tree data.
-    # TODO: Handle tree data issue better.
-    # NOTE: Right now it throws out some okay games.
-    lines = lines.strip()
-    assert lines[0] == '(' and lines[-1] == ')'
-    lines = lines[1:-1]
-    assert not re.search(SGF_TREE_REGEX, lines, re.DOTALL)
+    # Ignore handicap games.
+    match = re.search(SGF_HANDICAP_REGEX, lines)
+    if match:
+        handicap = int(match.group(1))
+        if handicap > 0:
+            print "{} stone handicap game, skipping".format(handicap)
+            raise NotImplementedError
     # Extract size.
     match = re.search(SGF_SIZE_REGEX, lines)
     if match:
@@ -116,7 +128,7 @@ def data_from_sgf(fname):
     # Play through the game and store the inputs/outputs.
     matches = re.findall(SGF_MOVE_REGEX, lines)
     engine = Engine(size)
-    boards = np.empty((len(matches), size, size))
+    images = np.empty((len(matches), size, size))
     labels = np.empty(len(matches), dtype=int)
     for t, match in enumerate(matches):
         # Convert sgf format to engine format.
@@ -125,39 +137,35 @@ def data_from_sgf(fname):
         col = ord(col) - ord('a')
         row = ord(row) - ord('a')
         move = (row, col)
-        # TODO: Handle weird passing case better.
-        assert col < size and row < size
-        # Store current image/label, including flips/rotations.
-        board = color*engine.board
-        boards[t] = board
+        # Store current image/label.
+        images[t] = color*engine.board
         labels[t] = row*size + col
         # Update engine.
         engine.make_move(move, color)
-    return boards, labels
+    return images, labels
 
-def init_h5(fname, size):
+def init_h5(fname, size=19):
     # Initialize h5 database.
     db = h5py.File(fname, 'x')
-    boards = db.create_dataset("boards",
+    images = db.create_dataset("images", dtype='i1',
             data=np.empty((0, size, size)),
             maxshape=(None, size, size))
-    labels = db.create_dataset("labels",
+    labels = db.create_dataset("labels", dtype='i2',
             data=np.empty((0,)),
             maxshape=(None,))
     return db
 
 def add_sgf(fname, db):
-    print "Adding {}".format(fname)
     # Extract game record from sgf.
-    new_boards, new_labels = data_from_sgf(fname)
-    M, s1, _ = new_boards.shape
+    new_images, new_labels = data_from_sgf(fname)
+    M, s1, _ = new_images.shape
     # Add new data to database.
-    boards = db["boards"]
+    images = db["images"]
     labels = db["labels"]
-    N, s2, _ = boards.shape
+    N, s2, _ = images.shape
     assert s1 == s2
-    boards.resize((N+M, s1, s1))
-    boards[N:N+M] = new_boards
+    images.resize((N+M, s1, s1))
+    images[N:N+M] = new_images
     labels.resize((N+M,))
     labels[N:N+M] = new_labels
     db.flush()
@@ -171,18 +179,31 @@ def add_dir(dirname, db):
             fname = os.path.join(dirpath, fname)
             try:
                 add_sgf(fname, db)
-            except:
+            except NotImplementedError:
+                continue
+            except AssertionError:
                 print "{} seems broken, skipping".format(fname)
                 continue
+            except:
+                print "New error"
+                import IPython; IPython.embed()
 
 if __name__ == "__main__":
-    # Create pro database.
-    db = init_h5(PRO_H5, 19)
-    dirs = ['./data/pro/2000/',
-            './data/pro/2001/',
-            './data/pro/2013/',
-            './data/pro/2014/']
+    # Create val/test databases.
+    db = init_h5(VAL_H5)
+    add_dir('./data/sgf/val/', db)
+    db.close()
+
+    db = init_h5(TEST_H5)
+    add_dir('./data/sgf/test/', db)
+    db.close()
+
+    # Create train database.
+    db = init_h5(TRAIN_H5, 19)
+    dirs = ['./data/sgf/train/{:04}'.format(i)
+            for i in range(48)]
     # Add all of the data to the h5 store.
     for dirname in dirs:
+        print "Adding {}".format(dirname)
         add_dir(dirname, db)
     db.close()

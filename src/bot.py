@@ -10,6 +10,7 @@ DIRNAME = './bots/{}'
 CKPT_BASE = './bots/{}/checkpoint'
 CKPT_FULL = './bots/{}/checkpoint-{}'
 CKPT_STEP_REGEX = r'checkpoint-(\d+).meta'
+SAVE_INTERVAL = 500
 
 class Bot():
     def __init__(self, name=None, global_step=None, size=19):
@@ -60,33 +61,38 @@ class Bot():
                     [None, self.size, self.size, NUM_FEATURES])
             # Add on the layers.
             # TODO: Config instead of hardcoded?
-            y = self._conv2d(self.x, 64, 5, tf.nn.crelu)
-            for i in range(3):
-                y = self._dense_block(y, 4, 24)
+            y = self._conv2d(self.x, 128, 5, tf.nn.crelu)
+            for layers in [5, 5, 5]:
+                y = self._dense_block(y, layers, 12)
                 num_outputs = y.get_shape()[3] // 2
                 y = self._conv2d(y, num_outputs, 1)
             y = self._conv2d(y, 1, 1, activation_fn=None)
             y = tf.reshape(y, [-1, self.size, self.size])
-            b = tf.Variable(-0.1*tf.zeros([self.size, self.size]))
-            self.y = y + b
-            # Set up training.
-            # TODO: Add regularization.
+            bias = tf.Variable(-0.1*tf.zeros([self.size, self.size]))
+            self.y = y + bias
+            # Set up loss.
             self.labels = tf.placeholder(tf.int32, [None])
             y_ = tf.reshape(self.y, [-1, self.size*self.size])
             self.loss = tf.reduce_mean(
                     tf.nn.sparse_softmax_cross_entropy_with_logits(
                             logits=y_, labels=self.labels))
+            # Add regularization.
+            reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+            loss = self.loss + reg_losses
+            # Build train op.
             solver = tf.train.AdamOptimizer()
-            self.minimize = solver.minimize(self.loss)
+            self.minimize = solver.minimize(loss)
             # Set up saving.
             self.saver = tf.train.Saver()
 
     def _conv2d(self, x, num_outputs, size, activation_fn=tf.nn.elu):
-        init = tf.contrib.layers.xavier_initializer_conv2d()
         norm_fn = tf.contrib.layers.layer_norm
+        init = tf.contrib.layers.xavier_initializer_conv2d()
+        l2_reg = tf.contrib.layers.l2_regularizer(1e-4)
         return tf.contrib.layers.conv2d(x, num_outputs=num_outputs,
                 kernel_size=size, padding='SAME', normalizer_fn=norm_fn,
-                weights_initializer=init, activation_fn=activation_fn)
+                weights_initializer=init, weights_regularizer=l2_reg,
+                activation_fn=activation_fn)
 
     def _dense_block(self, x, layers, growth_rate):
         for l in range(layers):
@@ -95,13 +101,31 @@ class Bot():
             x = tf.concat([x, y], axis=3)
         return x
 
+    def forward(self, image, use_symmetry=True):
+        # Process image.
+        shape = image.shape
+        rank = len(shape)
+        if use_symmetry:
+            assert rank == 2
+            images = d8_forward(image)
+        elif rank == 2:
+            images = image[None, ...]
+        else:
+            images = image
+        x = input_features(images) # rank == 4.
+        # Run forward pass.
+        y = self.sess.run(self.y, feed_dict={self.x: x})
+        if use_symmetry:
+            y = d8_backward(y)
+        elif rank == 2:
+            y = y[0]
+        return y
+
     def gen_move(self, engine, color):
         if engine.last_move == PASS:
             return PASS
-        x = input_features(color*engine.board)
-        x = d8_forward(x)
-        y = self.sess.run(self.y, feed_dict={self.x: x})
-        y = d8_backward(y)
+        image = color*engine.board
+        y = self.forward(image)
         idxs = np.argsort(-y, axis=None)
         for idx in idxs:
             move = (idx // self.size, idx % self.size)
@@ -109,20 +133,20 @@ class Bot():
                 return move
         return PASS
 
-    def train(self, boards, labels, batch_size=16, epochs=1.0):
-        N = boards.shape[0]
+    def train(self, images, labels, batch_size=16, epochs=1.0):
+        N = images.shape[0]
         iters = int(epochs * N / batch_size)
         for i in range(iters):
             # Pick random minibatch and train.
-            batch = np.random.choice(N, batch_size, replace=False)
-            x, y = augment_data(boards[batch], labels[batch])
+            batch = np.random.choice(N, batch_size)
+            x, y = augment_data(images[batch], labels[batch])
             loss, _ = self.sess.run([self.loss, self.minimize],
                     feed_dict={self.x: x, self.labels: y})
             print "{}, loss: {:f}, batch: {}/{}, step: {}".format(
                     self.name, loss, i, iters, self.global_step)
             # Update global step and save periodically.
             self.global_step += 1
-            if self.global_step % 25 == 0:
+            if self.global_step % SAVE_INTERVAL == 0:
                 self._save()
 
     def _save(self):
