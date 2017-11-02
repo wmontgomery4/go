@@ -32,9 +32,15 @@ if __name__ == "__main__":
     p.add_argument('-e', '--epochs', type=int, default=8.0)
     args = p.parse_args()
 
-    print "Creating bot"
-    bot = Bot(name=args.name, global_step=args.global_step)
+    if args.name:
+        print "Loading bot"
+        bot = Bot(name=args.name, global_step=args.global_step)
+
     engine = Engine()
+    cli = CLI()
+
+    rollout(engine,bot,bot,300)
+    embed()
 
     if args.train:
         print "Loading training data"
