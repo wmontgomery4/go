@@ -1,110 +1,41 @@
 import os, re
 import string
 import numpy as np
-import tensorflow as tf
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.autograd import Variable
 
 from engine import *
 from data_utils import *
 
-DIRNAME = './bots/{}'
-CKPT_BASE = './bots/{}/checkpoint'
-CKPT_FULL = './bots/{}/checkpoint-{}'
-CKPT_STEP_REGEX = r'checkpoint-(\d+).meta'
+
+DIR_FORMAT = './bots/{}'
 SAVE_INTERVAL = 500
 
-class Bot():
-    def __init__(self, name=None, global_step=None, size=19):
+
+class Bot(nn.Module):
+    def __init__(self, name=None, global_step=0, size=19):
+        super(Bot,self).__init__()
+
         # Process arguments.
         if name is None:
             assert global_step is None
-            name = ''.join([string.lowercase[i] for i in
-                    np.random.choice(26, size=6)])
-            ckpt = None
-        else:
-            dirname = DIRNAME.format(name)
-            assert os.path.exists(dirname)
-            if global_step is None:
-                files = os.listdir(dirname)
-                step_regex = re.compile(CKPT_STEP_REGEX)
-                steps = step_regex.findall(''.join(files))
-                global_step = max(map(int, steps))
-            ckpt = CKPT_FULL.format(name, global_step)
+            name = ''.join([string.lowercase[i] for i in np.random.choice(26, size=4)])
 
         # Store processed arguments.
         self.name = name
         self.global_step = global_step
         self.size = size
 
-        # Graph variables.
-        self.graph = tf.Graph()
-        self.x = None # (?, size, size, NUM_FEATURES)
-        self.y = None # (?, size, size)
-        self.labels = None # (?,)
-        self.loss = None
-        self.minimize = None
-        self.saver = None
-        self._build_graph()
+        # Net variables
+        self.x = torch.Tensor()
 
-        # Begin the session.
-        with self.graph.as_default():
-            self.sess = tf.Session()
-            if ckpt is None:
-                self.sess.run(tf.global_variables_initializer())
-                self.global_step = 0
-            else:
-                self.saver.restore(self.sess, ckpt)
-
-    def _build_graph(self):
-        with self.graph.as_default():
-            # Input variable.
-            self.x = tf.placeholder(tf.float32,
-                    [None, self.size, self.size, NUM_FEATURES])
-            # Add on the layers.
-            # TODO: Config instead of hardcoded?
-            y = self._conv2d(self.x, 128, 5, tf.nn.crelu)
-            for layers in [5, 5, 5]:
-                y = self._dense_block(y, layers, 12)
-                num_outputs = y.get_shape()[3] // 2
-                y = self._conv2d(y, num_outputs, 1)
-            y = self._conv2d(y, 1, 1, activation_fn=None)
-            y = tf.reshape(y, [-1, self.size, self.size])
-            bias = tf.Variable(-0.1*tf.zeros([self.size, self.size]))
-            self.y = y + bias
-            # Set up loss.
-            self.labels = tf.placeholder(tf.int32, [None])
-            y_ = tf.reshape(self.y, [-1, self.size*self.size])
-            self.loss = tf.reduce_mean(
-                    tf.nn.sparse_softmax_cross_entropy_with_logits(
-                            logits=y_, labels=self.labels))
-            # Add regularization.
-            reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-            loss = self.loss + reg_losses
-            # Build train op.
-            solver = tf.train.AdamOptimizer()
-            self.minimize = solver.minimize(loss)
-            # Set up saving.
-            self.saver = tf.train.Saver()
-
-    def _conv2d(self, x, num_outputs, size, activation_fn=tf.nn.elu):
-        norm_fn = tf.contrib.layers.layer_norm
-        init = tf.contrib.layers.xavier_initializer_conv2d()
-        l2_reg = tf.contrib.layers.l2_regularizer(1e-4)
-        return tf.contrib.layers.conv2d(x, num_outputs=num_outputs,
-                kernel_size=size, padding='SAME', normalizer_fn=norm_fn,
-                weights_initializer=init, weights_regularizer=l2_reg,
-                activation_fn=activation_fn)
-
-    def _dense_block(self, x, layers, growth_rate):
-        for l in range(layers):
-            bottleneck = self._conv2d(x, 4*growth_rate, 1)
-            y = self._conv2d(bottleneck, growth_rate, 3)
-            x = tf.concat([x, y], axis=3)
-        return x
-
-    def forward(self, image, use_symmetry=True):
+    def forward(self, image):
+        from IPython import embed; embed()
         # Process image.
-        shape = image.shape
-        rank = len(shape)
+        size = image.size()
+        rank = len(size)
         if use_symmetry:
             assert rank == 2
             images = d8_forward(image)

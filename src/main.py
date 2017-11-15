@@ -7,6 +7,12 @@ from data_utils import *
 from bot import Bot
 from cli import CLI
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.autograd import Variable
+
+
 def rollout(engine, black, white, moves=500):
     for i in range(moves // 2):
         # Black plays a move.
@@ -32,14 +38,11 @@ if __name__ == "__main__":
     p.add_argument('-e', '--epochs', type=int, default=8.0)
     args = p.parse_args()
 
-    if args.name:
-        print "Loading bot"
-        bot = Bot(name=args.name, global_step=args.global_step)
-
     engine = Engine()
     cli = CLI()
+    bot = Bot(name=args.name, global_step=args.global_step)
 
-    rollout(engine,bot,bot,300)
+    rollout(engine,bot,cli,300)
     embed()
 
     if args.train:
