@@ -1,6 +1,5 @@
 import sys, os, re, glob
 import h5py
-import tensorflow as tf
 from engine import *
 
 TRAIN_H5 = './data/train.h5'

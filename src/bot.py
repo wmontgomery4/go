@@ -21,7 +21,7 @@ class Bot(nn.Module):
         # Process arguments.
         if name is None:
             assert global_step is None
-            name = ''.join([string.lowercase[i] for i in np.random.choice(26, size=4)])
+            name = ''.join([string.ascii_lowercase[i] for i in np.random.choice(26, size=4)])
 
         # Store processed arguments.
         self.name = name
