@@ -53,7 +53,7 @@ if __name__ == "__main__":
         labels = db["labels"][:]
 
         print("Training {}".format(bot.name))
-        bot.train(images, labels, epochs=args.epochs)
+
 
     if args.test:
         print("Loading testing data")

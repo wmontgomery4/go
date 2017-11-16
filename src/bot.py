@@ -15,49 +15,44 @@ SAVE_INTERVAL = 500
 
 
 class Bot(nn.Module):
-    def __init__(self, name=None, global_step=0, size=19):
+    def __init__(self, name=None, global_step=None, size=19):
         super(Bot,self).__init__()
 
-        # Process arguments.
+        # Create random name
         if name is None:
             assert global_step is None
-            name = ''.join([string.ascii_lowercase[i] for i in np.random.choice(26, size=4)])
+            idxs = np.random.choice(26, size=4)
+            name = ''.join([string.ascii_lowercase[i] for i in idxs])
 
         # Store processed arguments.
         self.name = name
         self.global_step = global_step
+        # TODO: get rid of size?
         self.size = size
 
-        # Net variables
-        self.x = torch.Tensor()
-
-    def forward(self, image):
-        from IPython import embed; embed()
-        # Process image.
-        size = image.size()
-        rank = len(size)
-        if use_symmetry:
-            assert rank == 2
-            images = d8_forward(image)
-        elif rank == 2:
-            images = image[None, ...]
-        else:
-            images = image
-        x = input_features(images) # rank == 4.
-        # Run forward pass.
-        y = self.sess.run(self.y, feed_dict={self.x: x})
-        if use_symmetry:
-            y = d8_backward(y)
-        elif rank == 2:
-            y = y[0]
-        return y
+        # Initialize weights
+        # TODO: config files
+        self.model = torch.nn.Sequential(
+            torch.nn.Conv2d(1, 16, 3, padding=1),
+            torch.nn.ReLU(),
+            torch.nn.Conv2d(16, 16, 3, padding=1),
+            torch.nn.ReLU(),
+            torch.nn.Conv2d(16, 1, 3, padding=1)
+        )
 
     def gen_move(self, engine, color):
+        # TODO: add passing move
+        # TODO: add ko/handicap input
         if engine.last_move == PASS:
             return PASS
-        image = color*engine.board
-        y = self.forward(image)
-        idxs = np.argsort(-y, axis=None)
+
+        # TODO? float16
+        image = color*engine.board.astype('float32')
+        image = Variable(torch.from_numpy(image).unsqueeze(0).unsqueeze(0))
+        moves = self.model(image).squeeze()
+
+        # Sort moves and play optimal
+        idxs = np.argsort(-moves.data.numpy(), axis=None)
         for idx in idxs:
             move = (idx // self.size, idx % self.size)
             if engine.legal(move, color):
