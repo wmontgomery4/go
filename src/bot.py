@@ -73,8 +73,8 @@ class Bot(nn.Module):
             x, y = augment_data(images[batch], labels[batch])
             loss, _ = self.sess.run([self.loss, self.minimize],
                     feed_dict={self.x: x, self.labels: y})
-            print "{}, loss: {:f}, batch: {}/{}, step: {}".format(
-                    self.name, loss, i, iters, self.global_step)
+            print("{}, loss: {:f}, batch: {}/{}, step: {}".format(
+                    self.name, loss, i, iters, self.global_step))
             # Update global step and save periodically.
             self.global_step += 1
             if self.global_step % SAVE_INTERVAL == 0:

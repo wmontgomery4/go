@@ -29,7 +29,7 @@ def rollout(engine, black, white, moves=500):
 
 
 if __name__ == "__main__":
-    print "Parsing args"
+    print("Parsing args")
     p = argparse.ArgumentParser()
     p.add_argument('-n', '--name', default=None)
     p.add_argument('--train', action='store_true')
@@ -46,21 +46,21 @@ if __name__ == "__main__":
     embed()
 
     if args.train:
-        print "Loading training data"
+        print("Loading training data")
         db = h5py.File('/tmp/train.h5', 'r')
         #db = h5py.File(TRAIN_H5, 'r')
         images = db["images"][:]
         labels = db["labels"][:]
 
-        print "Training {}".format(bot.name)
+        print("Training {}".format(bot.name))
         bot.train(images, labels, epochs=args.epochs)
 
     if args.test:
-        print "Loading testing data"
+        print("Loading testing data")
         db = h5py.File(TEST_H5, 'r')
         images = db["images"][:]
         labels = db["labels"][:]
 
-        print "Testing {}".format(bot.name)
+        print("Testing {}".format(bot.name))
         import IPython; IPython.embed()
         bot.train(images, labels, epochs=args.epochs)

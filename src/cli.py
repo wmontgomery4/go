@@ -10,8 +10,8 @@ class CLI():
         last = engine.last_move
         last = "" if not last else engine.string_from_move(last)
         while True:
-            print unicode(engine)
-            string = raw_input(self.query.format(last))
+            print(str(engine))
+            string = input(self.query.format(last))
             if string == 'debug':
                 embed()
             elif string == '':
@@ -21,4 +21,4 @@ class CLI():
                 assert engine.legal(move, color)
                 return move
             except:
-                print "Illegal move! Try again."
+                print("Illegal move! Try again.")

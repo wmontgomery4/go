@@ -117,7 +117,7 @@ def data_from_sgf(fname):
     if match:
         handicap = int(match.group(1))
         if handicap > 0:
-            print "{} stone handicap game, skipping".format(handicap)
+            print("{} stone handicap game, skipping".format(handicap))
             raise NotImplementedError
     # Extract size.
     match = re.search(SGF_SIZE_REGEX, lines)
@@ -182,10 +182,10 @@ def add_dir(dirname, db):
             except NotImplementedError:
                 continue
             except AssertionError:
-                print "{} seems broken, skipping".format(fname)
+                print("{} seems broken, skipping".format(fname))
                 continue
             except:
-                print "New error"
+                print("New error")
                 import IPython; IPython.embed()
 
 if __name__ == "__main__":
@@ -204,6 +204,6 @@ if __name__ == "__main__":
             for i in range(48)]
     # Add all of the data to the h5 store.
     for dirname in dirs:
-        print "Adding {}".format(dirname)
+        print("Adding {}".format(dirname))
         add_dir(dirname, db)
     db.close()

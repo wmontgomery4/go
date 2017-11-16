@@ -143,27 +143,27 @@ class Engine():
     def __unicode__(self):
         """ Render board state as string. Not very efficient. """
         # Initialize char grid.
-        grid = np.empty((self.size, self.size), dtype=unicode)
-        grid[:]= u'+'
+        grid = np.empty((self.size, self.size), dtype=str)
+        grid[:]= '+'
         # Corners.
-        grid[0, 0] = u'\u250C'
-        grid[0, -1] = u'\u2510'
-        grid[-1, 0] = u'\u2514'
-        grid[-1, -1] = u'\u2518'
+        grid[0, 0] = '\u250C'
+        grid[0, -1] = '\u2510'
+        grid[-1, 0] = '\u2514'
+        grid[-1, -1] = '\u2518'
         # Sides.
-        grid[1:-1, 0] = u'\u251C'
-        grid[0, 1:-1] = u'\u252C'
-        grid[1:-1, -1] = u'\u2524'
-        grid[-1, 1:-1] = u'\u2534'
+        grid[1:-1, 0] = '\u251C'
+        grid[0, 1:-1] = '\u252C'
+        grid[1:-1, -1] = '\u2524'
+        grid[-1, 1:-1] = '\u2534'
         # Star points.
         if self.size == 9:
-            grid[4,4] = u'\u25CD'
-            grid[2::4, 2::4] = u'\u25CD'
+            grid[4,4] = '\u25CD'
+            grid[2::4, 2::4] = '\u25CD'
         if self.size == 19:
-            grid[3:16:6, 3:16:6] = u'\u25CD'
+            grid[3:16:6, 3:16:6] = '\u25CD'
         # Stones.
-        grid[self.board == BLACK] = u'\u25EF'
-        grid[self.board == WHITE] = u'\u2B24'
+        grid[self.board == BLACK] = '\u25EF'
+        grid[self.board == WHITE] = '\u2B24'
         # Build the string.
         cols = COLUMNS[:self.size]
         string = "   " + " ".join(list(cols))
@@ -175,8 +175,8 @@ class Engine():
         return string
 
     def print_debug(self):
-        print unicode(self)
-        print self.libs
+        print(str(self))
+        print(self.libs)
 
 
 if __name__ == "__main__":
