@@ -10,7 +10,7 @@ class CLI():
         last = engine.last_move
         last = "" if not last else engine.string_from_move(last)
         while True:
-            print(str(engine))
+            print(engine)
             string = input(self.query.format(last))
             if string == 'debug':
                 embed()

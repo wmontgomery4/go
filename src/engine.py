@@ -140,7 +140,7 @@ class Engine():
             col -= 1
         return (row, col)
 
-    def __unicode__(self):
+    def __str__(self):
         """ Render board state as string. Not very efficient. """
         # Initialize char grid.
         grid = np.empty((self.size, self.size), dtype=str)
@@ -174,10 +174,6 @@ class Engine():
         string += "\n   " + " ".join(list(cols))
         return string
 
-    def print_debug(self):
-        print(str(self))
-        print(self.libs)
-
 
 if __name__ == "__main__":
     engine = Engine()
@@ -189,4 +185,5 @@ if __name__ == "__main__":
     engine.make_move(engine.move_from_string("C5"), BLACK)
     engine.make_move(engine.move_from_string("E4"), BLACK)
     engine.make_move(engine.move_from_string("E5"), BLACK)
-    engine.print_debug()
+    print(engine)
+    print(engine.libs)
