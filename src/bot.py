@@ -32,13 +32,17 @@ class Bot(nn.Module):
 
         # Initialize weights
         # TODO: config files
-        self.model = torch.nn.Sequential(
-            torch.nn.Conv2d(1, 16, 3, padding=1),
-            torch.nn.ReLU(),
-            torch.nn.Conv2d(16, 16, 3, padding=1),
-            torch.nn.ReLU(),
-            torch.nn.Conv2d(16, 1, 3, padding=1)
-        )
+        n_layers = 12
+        n_channels = 192
+
+        layers = [nn.Conv2d(1, n_channels, 3, padding=1)]
+        layers.append(nn.ReLU())
+        for i in range(n_layers-2):
+            layers.append(nn.Conv2d(n_channels, n_channels, 3, padding=1))
+            layers.append(nn.ReLU())
+        layers.append(nn.Conv2d(n_channels, 1, 3, padding=1))
+
+        self.model = nn.Sequential(*layers)
 
     def gen_move(self, engine, color):
         # TODO: add passing move

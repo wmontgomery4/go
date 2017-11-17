@@ -41,8 +41,7 @@ if __name__ == "__main__":
     engine = Engine()
     cli = CLI()
     bot = Bot(name=args.name, global_step=args.global_step)
-
-    rollout(engine,bot,cli,300)
+    bot2 = Bot(name=args.name, global_step=args.global_step)
     embed()
 
     if args.train:
