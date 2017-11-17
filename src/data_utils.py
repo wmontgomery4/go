@@ -18,12 +18,12 @@ NUM_FEATURES = 3
 ## Input Feature Utils ##
 #########################
 
-def input_features(image):
-    shape = image.shape + (NUM_FEATURES,)
-    x = np.zeros(shape)
-    x[..., 0] = image > EMPTY
-    x[..., 1] = image < EMPTY
-    x[..., 2] = image == EMPTY
+#TODO: add ko
+def input_features(engine, color):
+    x = np.zeros([NUM_FEATURES, engine.size, engine.size], dtype='float32')
+    x[0] = (engine.board == EMPTY)
+    x[1] = (engine.board == color)
+    x[2] = (engine.board == -color)
     return x
 
 def rot90_labels(labels, size):

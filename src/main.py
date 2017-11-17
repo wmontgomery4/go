@@ -41,8 +41,7 @@ if __name__ == "__main__":
     engine = Engine()
     cli = CLI()
     bot = Bot(name=args.name, global_step=args.global_step)
-    bot2 = Bot(name=args.name, global_step=args.global_step)
-    embed()
+    rollout(engine, bot, cli)
 
     if args.train:
         print("Loading training data")

@@ -35,7 +35,7 @@ class Bot(nn.Module):
         n_layers = 12
         n_channels = 192
 
-        layers = [nn.Conv2d(1, n_channels, 3, padding=1)]
+        layers = [nn.Conv2d(NUM_FEATURES, n_channels, 3, padding=1)]
         layers.append(nn.ReLU())
         for i in range(n_layers-2):
             layers.append(nn.Conv2d(n_channels, n_channels, 3, padding=1))
@@ -51,8 +51,8 @@ class Bot(nn.Module):
             return PASS
 
         # TODO? float16
-        image = color*engine.board.astype('float32')
-        image = Variable(torch.from_numpy(image).unsqueeze(0).unsqueeze(0))
+        image = input_features(engine, color)
+        image = Variable(torch.from_numpy(image).unsqueeze(0))
         moves = self.model(image).squeeze()
 
         # Sort moves and play optimal
