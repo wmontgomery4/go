@@ -1,5 +1,5 @@
-import os, re
 import string
+import os, re, glob
 import numpy as np
 import torch
 import torch.nn as nn
@@ -15,6 +15,7 @@ SAVE_INTERVAL = 500
 
 
 class Bot(nn.Module):
+
     def __init__(self, name=None, global_step=None, size=19):
         super(Bot,self).__init__()
 
@@ -63,21 +64,29 @@ class Bot(nn.Module):
                 return move
         return PASS
 
-    def train(self, images, labels, batch_size=16, epochs=1.0):
-        N = images.shape[0]
-        iters = int(epochs * N / batch_size)
-        for i in range(iters):
-            # Pick random minibatch and train.
-            batch = np.random.choice(N, batch_size)
-            x, y = augment_data(images[batch], labels[batch])
-            loss, _ = self.sess.run([self.loss, self.minimize],
-                    feed_dict={self.x: x, self.labels: y})
-            print("{}, loss: {:f}, batch: {}/{}, step: {}".format(
-                    self.name, loss, i, iters, self.global_step))
-            # Update global step and save periodically.
-            self.global_step += 1
-            if self.global_step % SAVE_INTERVAL == 0:
-                self._save()
+    # TODO: label smoothing
+    def train(self):
+        batch_size  = 8
+        max_iters   = 100
+        data_source = 'data/Go_Seigen/1940*.sgf'
+
+        # Get data
+        images = np.empty([0, self.size, self.size])
+        labels = np.empty(0, dtype=int)
+        for sgf in glob.iglob(data_source):
+            result = data_from_sgf(sgf)
+            if result is not None:
+                images = np.r_[images, result[0]]
+                labels = np.r_[labels, result[1]]
+
+        # Train on minibatches
+        for i in range(max_iters):
+            idxs = np.random.choice(images.shape[0], batch_size)
+            x, y = augment_data(images[idxs], labels[idxs])
+            x = Variable(torch.from_numpy(x), requires_grad=True)
+            y_hat = self.model(x)
+            y = torch.from_numpy(y)
+            from IPython import embed; embed()
 
     def _save(self):
         # Initialize the save directory if it hasn't been created.

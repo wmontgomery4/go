@@ -29,36 +29,18 @@ def rollout(engine, black, white, moves=500):
 
 
 if __name__ == "__main__":
-    print("Parsing args")
+    # Parse args
     p = argparse.ArgumentParser()
     p.add_argument('-n', '--name', default=None)
-    p.add_argument('--train', action='store_true')
-    p.add_argument('--test', action='store_true')
-    p.add_argument('-t', '--global_step', type=int, default=None)
-    p.add_argument('-e', '--epochs', type=int, default=8.0)
+    p.add_argument('-t', '--train', action='store_true')
+    p.add_argument('-i', '--interactive', action='store_true')
     args = p.parse_args()
 
-    engine = Engine()
-    cli = CLI()
-    bot = Bot(name=args.name, global_step=args.global_step)
-    rollout(engine, bot, cli)
-
+    # Create bot
+    bot = Bot(name=args.name)
     if args.train:
-        print("Loading training data")
-        db = h5py.File('/tmp/train.h5', 'r')
-        #db = h5py.File(TRAIN_H5, 'r')
-        images = db["images"][:]
-        labels = db["labels"][:]
-
-        print("Training {}".format(bot.name))
-
-
-    if args.test:
-        print("Loading testing data")
-        db = h5py.File(TEST_H5, 'r')
-        images = db["images"][:]
-        labels = db["labels"][:]
-
-        print("Testing {}".format(bot.name))
-        import IPython; IPython.embed()
-        bot.train(images, labels, epochs=args.epochs)
+        bot.train()
+    elif args.interactive:
+        engine = Engine()
+        cli = CLI()
+        rollout(engine, bot, cli)

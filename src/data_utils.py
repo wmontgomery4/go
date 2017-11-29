@@ -2,23 +2,68 @@ import sys, os, re, glob
 import h5py
 from engine import *
 
-# TODO: Add pass as possible output?
-SGF_MOVE_REGEX = r';([BW])\[([a-s])([a-s])\]'
-SGF_TREE_REGEX = r'\(.*\)'
-SGF_SIZE_REGEX = r'SZ\[(\d*)\]'
-SGF_HANDICAP_REGEX = r'HA\[(\d*)\]'
+# SGF Regexes for size, handicap, add_black and black_white
+SGF_SZ = r'SZ\[(\d*)\]'
+SGF_HA = r'HA\[(\d*)\]'
+SGF_AB = r'AB\[([a-s][a-s])\]'
+SGF_BW = r';([BW])\[([a-s])([a-s])\]'
 
-#TODO: add ko
+SGF_TREE = r'\(.*\)'
+
+# TODO: add ko
+# TODO: Add pass as possible output?
 NUM_FEATURES = 3
+
+
+######################################################################
+# Data extraction
+
+def data_from_sgf(fname):
+    # Extract the sgf data.
+    with open(fname) as f:
+        lines = f.read()
+
+    # Extract size.
+    sz = re.search(SGF_SZ, lines)
+    size = int(sz) if sz else 19
+
+    # Ignore handicap games.
+    # TODO: implement AB match properly
+    ha = re.search(SGF_HA, lines)
+    ab = re.search(SGF_AB, lines)
+    if ab:
+        assert ha
+        handicap = int(ha.group(1))
+        if handicap > 0:
+            print("{} stone handicap game, skipping".format(handicap))
+            return None
+
+    # Play through the game and store the inputs/outputs.
+    bws = re.findall(SGF_BW, lines)
+    engine = Engine(size)
+    images = np.empty([len(bws), size, size])
+    labels = np.empty(len(bws), dtype=int)
+    for t, bw in enumerate(bws):
+        # Convert sgf format to engine format.
+        color, col, row = bw
+        color = BLACK if color == 'B' else WHITE
+        col = ord(col) - ord('a')
+        row = ord(row) - ord('a')
+        # Store current image/label.
+        images[t] = color*engine.board
+        labels[t] = row*size + col
+        # Update engine.
+        engine.make_move((row, col), color)
+    return images, labels
 
 ######################################################################
 # Input Feature Utils
 
-def input_features(engine, color):
-    x = np.zeros([NUM_FEATURES, engine.size, engine.size], dtype='float32')
-    x[0] = (engine.board == EMPTY)
-    x[1] = (engine.board == color)
-    x[2] = (engine.board == -color)
+def input_features(board, color):
+    x = np.zeros((NUM_FEATURES,) + board.shape, dtype='float32')
+    x[0] = (board == EMPTY)
+    x[1] = (board == color)
+    x[2] = (board == -color)
     return x
 
 def rot90_labels(labels, size):
@@ -33,7 +78,7 @@ def flipud_labels(labels, size):
 
 def augment_data(images, labels):
     idx = np.random.choice(8)
-    _, size, _ = images.shape
+    N, size, _ = images.shape
     if idx == 0:
         pass
     elif idx == 1:
@@ -69,7 +114,14 @@ def augment_data(images, labels):
         labels = rot90_labels(labels, size)
         labels = rot90_labels(labels, size)
         labels = flipud_labels(labels, size)
-    return input_features(images), labels
+    # Convert the images to input_features
+    # TODO: input_features abstraction is ugly right now
+    # TODO: data ordering
+    images = input_features(images, BLACK).swapaxes(0,1)
+    # TODO: use row/col, not label
+    one_hot = np.zeros([N, size*size])
+    one_hot[np.arange(N), labels] = 1.0
+    return images, one_hot
 
 def d8_forward(image):
     # Get all flips/rotations of the image.
@@ -97,46 +149,3 @@ def d8_backward(images):
     refls[6] = np.rot90(np.flipud(images[6]), k=2)
     refls[7] = np.rot90(np.flipud(images[7]))
     return refls.mean(axis=0)
-
-
-######################################################################
-# Data extraction
-
-def data_from_sgf(fname):
-    # Extract the sgf data.
-    with open(fname) as f:
-        lines = f.read()
-
-    # Ignore handicap games.
-    match = re.search(SGF_HANDICAP_REGEX, lines)
-    if match:
-        handicap = int(match.group(1))
-        if handicap > 0:
-            print("{} stone handicap game, skipping".format(handicap))
-            raise NotImplementedError
-
-    # Extract size.
-    match = re.search(SGF_SIZE_REGEX, lines)
-    if match:
-        size = int(match.group(1))
-    else:
-        size = 19
-
-    # Play through the game and store the inputs/outputs.
-    matches = re.findall(SGF_MOVE_REGEX, lines)
-    engine = Engine(size)
-    images = np.empty((len(matches), size, size))
-    labels = np.empty(len(matches), dtype=int)
-    for t, match in enumerate(matches):
-        # Convert sgf format to engine format.
-        color, col, row = match
-        color = BLACK if color == 'B' else WHITE
-        col = ord(col) - ord('a')
-        row = ord(row) - ord('a')
-        move = (row, col)
-        # Store current image/label.
-        images[t] = color*engine.board
-        labels[t] = row*size + col
-        # Update engine.
-        engine.make_move(move, color)
-    return images, labels
