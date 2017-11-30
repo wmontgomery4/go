@@ -38,9 +38,10 @@ if __name__ == "__main__":
 
     # Create bot
     bot = Bot(name=args.name)
+    print("Created", bot.name)
     if args.train:
         bot.train()
-    elif args.interactive:
+    if args.interactive:
         engine = Engine()
         cli = CLI()
-        rollout(engine, bot, cli)
+        rollout(engine, cli, bot)

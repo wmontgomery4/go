@@ -6,6 +6,7 @@ from engine import *
 SGF_SZ = r'SZ\[(\d*)\]'
 SGF_HA = r'HA\[(\d*)\]'
 SGF_AB = r'AB\[([a-s][a-s])\]'
+SGF_AW = r'AW\[([a-s][a-s])\]'
 SGF_BW = r';([BW])\[([a-s])([a-s])\]'
 
 SGF_TREE = r'\(.*\)'
@@ -21,25 +22,19 @@ NUM_FEATURES = 3
 def data_from_sgf(fname):
     # Extract the sgf data.
     with open(fname) as f:
-        lines = f.read()
+        sgf = f.read()
 
     # Extract size.
-    sz = re.search(SGF_SZ, lines)
+    sz = re.search(SGF_SZ, sgf)
     size = int(sz) if sz else 19
 
     # Ignore handicap games.
-    # TODO: implement AB match properly
-    ha = re.search(SGF_HA, lines)
-    ab = re.search(SGF_AB, lines)
-    if ab:
-        assert ha
-        handicap = int(ha.group(1))
-        if handicap > 0:
-            print("{} stone handicap game, skipping".format(handicap))
-            return None
+    # TODO: implement handicap games properly
+    if re.search(SGF_HA, sgf) or re.search(SGF_AB, sgf) or re.search(SGF_AW, sgf):
+        raise NotImplementedError
 
     # Play through the game and store the inputs/outputs.
-    bws = re.findall(SGF_BW, lines)
+    bws = re.findall(SGF_BW, sgf)
     engine = Engine(size)
     images = np.empty([len(bws), size, size])
     labels = np.empty(len(bws), dtype=int)
@@ -118,10 +113,8 @@ def augment_data(images, labels):
     # TODO: input_features abstraction is ugly right now
     # TODO: data ordering
     images = input_features(images, BLACK).swapaxes(0,1)
-    # TODO: use row/col, not label
-    one_hot = np.zeros([N, size*size])
-    one_hot[np.arange(N), labels] = 1.0
-    return images, one_hot
+    # TODO? use row/col, not label
+    return images, labels
 
 def d8_forward(image):
     # Get all flips/rotations of the image.

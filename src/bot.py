@@ -44,6 +44,8 @@ class Bot(nn.Module):
         layers.append(nn.Conv2d(n_channels, 1, 3, padding=1))
 
         self.model = nn.Sequential(*layers)
+        self.loss = nn.CrossEntropyLoss()
+        self.optim = torch.optim.Adam(self.model.parameters(), lr=1e-4)
 
     def gen_move(self, engine, color):
         # TODO: add passing move
@@ -52,12 +54,14 @@ class Bot(nn.Module):
             return PASS
 
         # TODO? float16
-        image = input_features(engine, color)
-        image = Variable(torch.from_numpy(image).unsqueeze(0))
-        moves = self.model(image).squeeze()
+        boards = d8_forward(engine.board)
+        images = input_features(boards, color).swapaxes(0,1)
+        images = Variable(torch.from_numpy(images))
+        moves = self.model(images).squeeze()
+        moves = d8_backward(moves.data.numpy())
 
         # Sort moves and play optimal
-        idxs = np.argsort(-moves.data.numpy(), axis=None)
+        idxs = np.argsort(-moves, axis=None)
         for idx in idxs:
             move = (idx // self.size, idx % self.size)
             if engine.legal(move, color):
@@ -67,26 +71,43 @@ class Bot(nn.Module):
     # TODO: label smoothing
     def train(self):
         batch_size  = 8
-        max_iters   = 100
-        data_source = 'data/Go_Seigen/1940*.sgf'
+        max_iters   = 10000
+        data_source = 'data/Go_Seigen/*.sgf'
 
         # Get data
         images = np.empty([0, self.size, self.size])
         labels = np.empty(0, dtype=int)
         for sgf in glob.iglob(data_source):
-            result = data_from_sgf(sgf)
+            print("Loading",sgf)
+            # TODO: how to do try/except properly?
+            # TODO: why does that one Go Seigen game fail?
+            result = None
+            try:
+                result = data_from_sgf(sgf)
+            except:
+                print("Can't load:",sgf)
+                #print("Can't load:",e)
             if result is not None:
                 images = np.r_[images, result[0]]
                 labels = np.r_[labels, result[1]]
 
         # Train on minibatches
+        print("Training on",images.shape[0],"moves!")
         for i in range(max_iters):
+            # Forward/backward
+            self.optim.zero_grad()
             idxs = np.random.choice(images.shape[0], batch_size)
             x, y = augment_data(images[idxs], labels[idxs])
             x = Variable(torch.from_numpy(x), requires_grad=True)
-            y_hat = self.model(x)
-            y = torch.from_numpy(y)
-            from IPython import embed; embed()
+            y_hat = self.model(x).view([batch_size, -1])
+            y = Variable(torch.from_numpy(y))
+            J = self.loss(y_hat, y)
+            J.backward()
+
+            # Gradient step
+            # TODO: better way to access J.data[0]
+            print("Step: {}/{}, loss: {:.3f}".format(i, max_iters, J.data[0]))
+            self.optim.step()
 
     def _save(self):
         # Initialize the save directory if it hasn't been created.
