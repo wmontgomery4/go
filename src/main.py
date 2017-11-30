@@ -1,16 +1,14 @@
-import sys, argparse
-import h5py
-from IPython import embed
+import os
+import shutil
+import random
+import string
+import argparse
 
-from engine import *
-from data_utils import *
-from bot import Bot
+import engine
+import data_utils
+from bot import Bot, CONFIG_JSON
 from cli import CLI
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.autograd import Variable
 
 
 def rollout(engine, black, white, moves=500):
@@ -31,13 +29,35 @@ def rollout(engine, black, white, moves=500):
 if __name__ == "__main__":
     # Parse args
     p = argparse.ArgumentParser()
-    p.add_argument('-n', '--name', default=None)
     p.add_argument('-t', '--train', action='store_true')
     p.add_argument('-i', '--interactive', action='store_true')
+    p.add_argument('-c', '--config')
+    #p.add_argument('-c', '--config', DEFAULT_CONFIG)
+    p.add_argument('-n', '--name')
+    p.add_argument('-s', '--step')
     args = p.parse_args()
 
-    # Create bot
-    bot = Bot(name=args.name)
+    # TODO: Add/Train/Test subcommands
+    # TODO: Sweeps over configs
+    # Create a new bot if config is given
+    if not (args.config or args.name):
+        args.config = 'config.json'
+    if args.config:
+        assert args.step is None
+        if not args.name:
+            letters = string.ascii_lowercase
+            args.name = ''.join(random.choice(letters) for _ in range(4))
+
+        # Create directory and store config
+        # TODO: this is hacky
+        fname = CONFIG_JSON.format(args.name)
+        assert not os.path.exists(fname), "woah a collision!"
+        os.makedirs(os.path.dirname(fname))
+        shutil.copyfile(args.config, fname)
+
+
+    # Load bot
+    bot = Bot(name=args.name, step=args.step)
     print("Created", bot.name)
     if args.train:
         bot.train()

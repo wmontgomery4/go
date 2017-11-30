@@ -1,5 +1,8 @@
-import string
-import os, re, glob
+import re
+import json
+import glob
+from types import SimpleNamespace
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -10,41 +13,43 @@ from engine import *
 from data_utils import *
 
 
-DIR_FORMAT = './bots/{}'
-SAVE_INTERVAL = 500
+ROOT = 'bots/{}'
+CONFIG_JSON = 'bots/{}/config.json'
+WEIGHTS_DAT = 'bots/{}/weights.{:09d}.dat'
 
 
 class Bot(nn.Module):
+    def __init__(self, name, step=None):
+        super(Bot, self).__init__()
 
-    def __init__(self, name=None, global_step=None, size=19):
-        super(Bot,self).__init__()
+        # TODO: random seeding
 
-        # Create random name
-        if name is None:
-            assert global_step is None
-            idxs = np.random.choice(26, size=4)
-            name = ''.join([string.ascii_lowercase[i] for i in idxs])
-
-        # Store processed arguments.
+        # Store args
         self.name = name
-        self.global_step = global_step
-        # TODO: get rid of size?
-        self.size = size
+        self.step = step
+        self.size = 19
+
+        # Load config
+        with open(CONFIG_JSON.format(name)) as f:
+            self.config = json.load(f, object_hook=lambda d: SimpleNamespace(**d))
+
 
         # Initialize weights
-        # TODO: config files
-        n_layers = 12
-        n_channels = 192
+        # TODO: model.py
+        # TODO: more complex models
+        C = self.config.model.n_channels
+        L = self.config.model.n_layers
 
-        layers = [nn.Conv2d(NUM_FEATURES, n_channels, 3, padding=1)]
+        layers = [nn.Conv2d(NUM_FEATURES, C, 3, padding=1)]
         layers.append(nn.ReLU())
-        for i in range(n_layers-2):
-            layers.append(nn.Conv2d(n_channels, n_channels, 3, padding=1))
+        for i in range(L-2):
+            layers.append(nn.Conv2d(C, C, 3, padding=1))
             layers.append(nn.ReLU())
-        layers.append(nn.Conv2d(n_channels, 1, 3, padding=1))
+        layers.append(nn.Conv2d(C, 1, 3, padding=1))
 
         self.model = nn.Sequential(*layers)
         self.loss = nn.CrossEntropyLoss()
+        # TODO: optim.py
         self.optim = torch.optim.Adam(self.model.parameters(), lr=1e-4)
 
     def gen_move(self, engine, color):

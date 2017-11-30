@@ -1,0 +1,10 @@
+{
+    "model": {
+        "n_layers": 6,
+        "n_channels": 36
+    },
+    "optim": {
+        "type": "adam",
+        "lr": 1e-4
+    }
+}

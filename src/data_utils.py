@@ -2,6 +2,7 @@ import sys, os, re, glob
 import h5py
 from engine import *
 
+# TODO: sgf.py
 # SGF Regexes for size, handicap, add_black and black_white
 SGF_SZ = r'SZ\[(\d*)\]'
 SGF_HA = r'HA\[(\d*)\]'
