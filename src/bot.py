@@ -21,11 +21,11 @@ class Bot(nn.Module):
         self.step = step or 0
         self.size = 19
 
-        # TODO: move all below init to separate method?
+        # TODO: move all below init to separate method
 
         # Initialize model
+        # TODO: add value network
         # TODO: model.py/optim.py/loss.py/source.py
-        # TODO: more complex models
         C = self.config['model']['n_channels']
         L = self.config['model']['n_layers']
         layers = [nn.Conv2d(NUM_FEATURES, C, 3, padding=1)]
@@ -42,7 +42,12 @@ class Bot(nn.Module):
         # Load weights
         if self.step:
             weights_dat = config['weights_dat'].format(step)
-            self.model.load_state_dict(torch.load(weights_dat))
+            # TODO: cleaner loading
+            try:
+                self.model.load_state_dict(torch.load(weights_dat))
+            except AssertionError:
+                self.model.load_state_dict(torch.load(weights_dat,
+                                                      map_location=lambda s,l: s))
 
         # Build optim/loss
         lr = self.config['optim']['lr']
@@ -51,7 +56,6 @@ class Bot(nn.Module):
 
     def gen_move(self, engine, color):
         # TODO: add passing move
-        # TODO: add ko/handicap input
         if engine.last_move == PASS:
             return PASS
 
@@ -82,15 +86,13 @@ class Bot(nn.Module):
         labels = []
         for sgf in glob.iglob(data_source):
             print("Loading", sgf)
-            # TODO: how to do try/except properly?
             # TODO: why does that one Go Seigen game fail?
             try:
                 _images, _labels = data_from_sgf(sgf)
                 images.append(_images)
                 labels.append(_labels)
-            except NotImplementedError:
-                print("Can't load:", sgf)
-                #print("Can't load:",e)
+            except Exception as e:
+                print("Can't load:", e)
         images = np.concatenate(images)
         labels = np.concatenate(labels)
 

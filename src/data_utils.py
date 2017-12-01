@@ -14,8 +14,7 @@ SGF_BW = r';([BW])\[([a-s])([a-s])\]'
 
 SGF_TREE = r'\(.*\)'
 
-# TODO: add ko
-# TODO: Add pass as possible output?
+# TODO: add ko input (and maybe komi/handicap?)
 NUM_FEATURES = 3
 
 
@@ -41,13 +40,14 @@ def data_from_sgf(fname):
         sgf = f.read()
 
     # Extract size.
+    # TODO: fix 'int(sz)' error
     sz = re.search(SGF_SZ, sgf)
     size = int(sz) if sz else 19
 
     # Ignore handicap games.
     # TODO: implement handicap games properly
     if re.search(SGF_HA, sgf) or re.search(SGF_AB, sgf) or re.search(SGF_AW, sgf):
-        raise NotImplementedError
+        raise NotImplementedError("handicap games not implemented")
 
     # Play through the game and store the inputs/outputs.
     bws = re.findall(SGF_BW, sgf)
