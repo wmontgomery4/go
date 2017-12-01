@@ -70,8 +70,8 @@ def data_from_sgf(fname):
 ######################################################################
 # Input Feature Utils
 
-def to_torch_var(arr, requires_grad=False, cuda=True):
-    arr = arr.astype('float32')
+def to_torch_var(arr, requires_grad=False, cuda=True, dtype='float32'):
+    arr = arr.astype(dtype)
     var = torch.autograd.Variable(torch.from_numpy(arr), requires_grad=requires_grad)
     return var.cuda() if cuda and torch.cuda.is_available() else var
 

@@ -103,7 +103,7 @@ class Bot(nn.Module):
             # NOTE: have to copy X because rotating makes negative strides
             X = to_torch_var(X.copy(), requires_grad=True)
             Y_hat = self.model(X).view([batch_size, -1])
-            Y = to_torch_var(Y)
+            Y = to_torch_var(Y, dtype=int)
             J = self.loss(Y_hat, Y)
             print("Step: {}/{}, loss: {:.3f}".format(i, max_iters, J.data[0]))
 
