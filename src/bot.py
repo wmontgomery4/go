@@ -74,32 +74,54 @@ class Bot(nn.Module):
         max_iters = 1000000
         batch_size = 8
         save_interval = 1000
-        data_source = 'data/Takagawa/*.sgf'
+        data_source = 'data/**/*.sgf'
 
-        # Get data
         # TODO: proper data loader
-        images = []
-        labels = []
+        files = glob.glob(data_source)
+        sgfs = []
         for sgf in glob.iglob(data_source):
             print("Loading", sgf)
             # TODO: how to do try/except properly?
             # TODO: why does that one Go Seigen game fail?
-            try:
-                _images, _labels = data_from_sgf(sgf)
-                images.append(_images)
-                labels.append(_labels)
-            except NotImplementedError:
-                print("Can't load:", sgf)
-                #print("Can't load:",e)
-        images = np.concatenate(images)
-        labels = np.concatenate(labels)
+            with open(sgf) as f:
+                sgfs.append(f.read())
+
+        #images = []
+        #labels = []
+        #for sgf in glob.iglob(data_source):
+        #    print("Loading", sgf)
+        #    # TODO: how to do try/except properly?
+        #    # TODO: why does that one Go Seigen game fail?
+        #    try:
+        #        _images, _labels = data_from_sgf(sgf)
+        #        images.append(_images)
+        #        labels.append(_labels)
+        #    except:
+        #        print("Can't load:", sgf)
+        #        #print("Can't load:",e)
+        #images = np.concatenate(images)
+        #labels = np.concatenate(labels)
 
         # Train on minibatches
-        print("Training on", images.shape[0], "moves!")
+        print("Training on", len(sgfs), "games!")
         for i in range(max_iters):
+            # Load minibatch
+            images = []
+            labels = []
+            while len(images) < batch_size:
+                sgf_idx = np.random.choice(len(sgfs))
+                try:
+                    _images, _labels = data_from_sgf(sgfs[sgf_idx])
+                    move_idx = np.random.choice(_images.shape[0])
+                except:
+                    continue
+                images.append(_images[move_idx])
+                labels.append(_labels[move_idx])
+            images = np.stack(images)
+            labels = np.stack(labels)
+
             # Forward pass
-            idxs = np.random.choice(images.shape[0], batch_size)
-            X, Y = augment_data(images[idxs], labels[idxs])
+            X, Y = augment_data(images, labels)
             # NOTE: have to copy X because rotating makes negative strides
             X = to_torch_var(X.copy(), requires_grad=True)
             Y_hat = self.model(X).view([batch_size, -1])

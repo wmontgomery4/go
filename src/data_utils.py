@@ -35,11 +35,7 @@ def board_to_image(board, color_to_play):
     return image.swapaxes(0,1) # (N, 3, 19, 19)
 
 
-def data_from_sgf(fname):
-    # Extract the sgf data.
-    with open(fname) as f:
-        sgf = f.read()
-
+def data_from_sgf(sgf):
     # Extract size.
     sz = re.search(SGF_SZ, sgf)
     size = int(sz) if sz else 19
