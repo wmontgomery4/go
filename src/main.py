@@ -4,8 +4,7 @@ import random
 import string
 import argparse
 
-import engine
-import data_utils
+from engine import *
 from bot import Bot
 from cli import CLI
 
