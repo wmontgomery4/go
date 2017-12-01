@@ -78,4 +78,4 @@ if __name__ == "__main__":
     if args.interactive:
         engine = Engine()
         cli = CLI()
-        rollout(engine, cli, bot)
+        rollout(engine, bot, cli)

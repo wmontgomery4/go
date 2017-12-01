@@ -59,7 +59,7 @@ class Bot(nn.Module):
         boards = d8_forward(engine.board) # (8, 19, 19)
         images = to_torch_var(board_to_image(boards, color)) # (8, 3, 19, 19)
         moves = self.model(images).squeeze() # (8, 19, 19)
-        moves = d8_backward(moves.data.numpy()) # (19, 19)
+        moves = d8_backward(moves.data.cpu().numpy()) # (19, 19)
 
         # Sort moves and play optimal
         idxs = np.argsort(-moves, axis=None)

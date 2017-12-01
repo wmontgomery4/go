@@ -28,7 +28,7 @@ def board_to_image(board, color_to_play):
         board = board[None] # (1, size, size)
     else:
         assert rank == 3, "Shape must be (size, size) or (N, size, size)"
-    image = np.empty((NUM_FEATURES,) + board.shape, dtype='float32') # (3, N, 19, 19)
+    image = np.empty((NUM_FEATURES,) + board.shape, dtype=int) # (3, N, 19, 19)
     image[0] = (board == EMPTY)
     image[1] = (board == color_to_play)
     image[2] = (board == -color_to_play)
@@ -52,7 +52,7 @@ def data_from_sgf(fname):
     # Play through the game and store the inputs/outputs.
     bws = re.findall(SGF_BW, sgf)
     engine = Engine(size)
-    images = np.empty([len(bws), NUM_FEATURES, size, size], dtype='float32')
+    images = np.empty([len(bws), NUM_FEATURES, size, size], dtype=int)
     labels = np.empty(len(bws), dtype=int)
     for t, bw in enumerate(bws):
         # Convert sgf format to engine format.
@@ -71,6 +71,7 @@ def data_from_sgf(fname):
 # Input Feature Utils
 
 def to_torch_var(arr, requires_grad=False, cuda=True):
+    arr = arr.astype('float32')
     var = torch.autograd.Variable(torch.from_numpy(arr), requires_grad=requires_grad)
     return var.cuda() if cuda and torch.cuda.is_available() else var
 
