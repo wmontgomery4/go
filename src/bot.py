@@ -1,56 +1,51 @@
-import re
-import json
+# TODO: move to source.py
 import glob
-from types import SimpleNamespace
 
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.autograd import Variable
 
 from engine import *
 from data_utils import *
 
 
-ROOT = 'bots/{}'
-CONFIG_JSON = 'bots/{}/config.json'
-WEIGHTS_DAT = 'bots/{}/weights.{:09d}.dat'
-
-
 class Bot(nn.Module):
-    def __init__(self, name, step=None):
+    def __init__(self, config, step=None):
         super(Bot, self).__init__()
 
         # TODO: random seeding
 
         # Store args
-        self.name = name
-        self.step = step
+        self.config = config
+        # TODO: load last weights if possible
+        self.step = step or 0
         self.size = 19
 
-        # Load config
-        with open(CONFIG_JSON.format(name)) as f:
-            self.config = json.load(f, object_hook=lambda d: SimpleNamespace(**d))
+        # TODO: move all below init to separate method?
 
-
-        # Initialize weights
-        # TODO: model.py
+        # Initialize model
+        # TODO: model.py/optim.py/loss.py/source.py
         # TODO: more complex models
-        C = self.config.model.n_channels
-        L = self.config.model.n_layers
-
+        C = self.config['model']['n_channels']
+        L = self.config['model']['n_layers']
         layers = [nn.Conv2d(NUM_FEATURES, C, 3, padding=1)]
         layers.append(nn.ReLU())
         for i in range(L-2):
             layers.append(nn.Conv2d(C, C, 3, padding=1))
             layers.append(nn.ReLU())
         layers.append(nn.Conv2d(C, 1, 3, padding=1))
-
         self.model = nn.Sequential(*layers)
+
+        # Load weights
+        if self.step:
+            weights_dat = config['weights_dat'].format(step)
+            self.model.load_state_dict(torch.load(weights_dat))
+
+        # Build optim/loss
+        lr = self.config['optim']['lr']
+        self.optim = torch.optim.Adam(self.model.parameters(), lr=lr)
         self.loss = nn.CrossEntropyLoss()
-        # TODO: optim.py
-        self.optim = torch.optim.Adam(self.model.parameters(), lr=1e-4)
 
     def gen_move(self, engine, color):
         # TODO: add passing move
@@ -73,13 +68,15 @@ class Bot(nn.Module):
                 return move
         return PASS
 
-    # TODO: label smoothing
+    # TODO: label smoothing or max_ent
     def train(self):
-        batch_size  = 8
-        max_iters   = 10000
-        data_source = 'data/Go_Seigen/*.sgf'
+        max_iters = 10000
+        batch_size = 8
+        save_interval = 1000
+        data_source = 'data/Go_Seigen/1940*.sgf'
 
         # Get data
+        # TODO: proper data loader
         images = np.empty([0, self.size, self.size])
         labels = np.empty(0, dtype=int)
         for sgf in glob.iglob(data_source):
@@ -90,35 +87,35 @@ class Bot(nn.Module):
             try:
                 result = data_from_sgf(sgf)
             except:
-                print("Can't load:",sgf)
+                print("Can't load:", sgf)
                 #print("Can't load:",e)
             if result is not None:
                 images = np.r_[images, result[0]]
                 labels = np.r_[labels, result[1]]
 
         # Train on minibatches
-        print("Training on",images.shape[0],"moves!")
+        print("Training on", images.shape[0], "moves!")
         for i in range(max_iters):
-            # Forward/backward
-            self.optim.zero_grad()
+            # Forward pass
             idxs = np.random.choice(images.shape[0], batch_size)
-            x, y = augment_data(images[idxs], labels[idxs])
-            x = Variable(torch.from_numpy(x), requires_grad=True)
-            y_hat = self.model(x).view([batch_size, -1])
-            y = Variable(torch.from_numpy(y))
-            J = self.loss(y_hat, y)
-            J.backward()
-
-            # Gradient step
+            X, Y = augment_data(images[idxs], labels[idxs])
+            X = Variable(torch.from_numpy(X), requires_grad=True)
+            Y_hat = self.model(X).view([batch_size, -1])
+            Y = Variable(torch.from_numpy(Y))
+            J = self.loss(Y_hat, Y)
             # TODO: better way to access J.data[0]
             print("Step: {}/{}, loss: {:.3f}".format(i, max_iters, J.data[0]))
+
+            # Backward pass
+            self.optim.zero_grad()
+            J.backward()
             self.optim.step()
 
-    def _save(self):
-        # Initialize the save directory if it hasn't been created.
-        dirname = DIRNAME.format(self.name)
-        if not os.path.exists(dirname):
-            os.makedirs(dirname)
-        # Save the current state of the session.
-        self.saver.save(self.sess, CKPT_BASE.format(self.name),
-                global_step=self.global_step)
+            # Save
+            self.step += 1
+            if self.step % save_interval == 0:
+                self.save()
+
+    def save(self):
+        weights_dat = self.config['weights_dat'].format(self.step)
+        torch.save(self.model.state_dict(), weights_dat)

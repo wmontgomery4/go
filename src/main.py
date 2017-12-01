@@ -1,4 +1,5 @@
 import os
+import json
 import shutil
 import random
 import string
@@ -6,9 +7,31 @@ import argparse
 
 import engine
 import data_utils
-from bot import Bot, CONFIG_JSON
+from bot import Bot
 from cli import CLI
 
+# TODO: framework.py?
+ROOT = 'bots/{}'
+CONFIG_JSON = 'config.json'
+WEIGHTS_DAT = 'weights.{:09d}.dat'
+
+def new_bot(config_json):
+    # Create random name
+    name = ''.join(random.choice(string.ascii_lowercase) for _ in range(4))
+    root = ROOT.format(name)
+    assert not os.path.exists(root), "woah a collision!"
+    os.makedirs(root)
+
+    # Load config
+    with open(config_json) as f:
+        config = json.load(f)
+
+    # Add some info and store in root
+    config['root'] = root
+    config['weights_dat'] = os.path.join(root, WEIGHTS_DAT)
+    with open(os.path.join(root, CONFIG_JSON), 'w') as f:
+        json.dump(config, f)
+    return name
 
 
 def rollout(engine, black, white, moves=500):
@@ -32,33 +55,27 @@ if __name__ == "__main__":
     p.add_argument('-t', '--train', action='store_true')
     p.add_argument('-i', '--interactive', action='store_true')
     p.add_argument('-c', '--config')
-    #p.add_argument('-c', '--config', DEFAULT_CONFIG)
     p.add_argument('-n', '--name')
     p.add_argument('-s', '--step')
     args = p.parse_args()
 
+    assert bool(args.name) != bool(args.config), "Must give --name or --config"
+
     # TODO: Add/Train/Test subcommands
     # TODO: Sweeps over configs
+
     # Create a new bot if config is given
-    if not (args.config or args.name):
-        args.config = 'config.json'
     if args.config:
         assert args.step is None
-        if not args.name:
-            letters = string.ascii_lowercase
-            args.name = ''.join(random.choice(letters) for _ in range(4))
-
-        # Create directory and store config
-        # TODO: this is hacky
-        fname = CONFIG_JSON.format(args.name)
-        assert not os.path.exists(fname), "woah a collision!"
-        os.makedirs(os.path.dirname(fname))
-        shutil.copyfile(args.config, fname)
-
+        args.name = new_bot(args.config)
 
     # Load bot
-    bot = Bot(name=args.name, step=args.step)
-    print("Created", bot.name)
+    with open(CONFIG_JSON.format(args.name)) as f:
+        config = json.load(f)
+    bot = Bot(config, step=args.step)
+    print("Created", args.name)
+
+    # Main logic
     if args.train:
         bot.train()
     if args.interactive:
