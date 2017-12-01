@@ -70,28 +70,28 @@ class Bot(nn.Module):
 
     # TODO: label smoothing or max_ent
     def train(self):
-        max_iters = 10000
+        max_iters = 1000000
         batch_size = 8
         save_interval = 1000
-        data_source = 'data/Go_Seigen/1940*.sgf'
+        data_source = 'data/Takagawa/*.sgf'
 
         # Get data
         # TODO: proper data loader
-        images = np.empty([0, self.size, self.size])
-        labels = np.empty(0, dtype=int)
+        images = []
+        labels = []
         for sgf in glob.iglob(data_source):
-            print("Loading",sgf)
+            print("Loading", sgf)
             # TODO: how to do try/except properly?
             # TODO: why does that one Go Seigen game fail?
-            result = None
             try:
-                result = data_from_sgf(sgf)
+                _images, _labels = data_from_sgf(sgf)
+                images.append(_images)
+                labels.append(_labels)
             except:
                 print("Can't load:", sgf)
                 #print("Can't load:",e)
-            if result is not None:
-                images = np.r_[images, result[0]]
-                labels = np.r_[labels, result[1]]
+        images = np.concatenate(images)
+        labels = np.concatenate(labels)
 
         # Train on minibatches
         print("Training on", images.shape[0], "moves!")

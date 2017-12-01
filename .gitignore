@@ -2,3 +2,4 @@ bots
 data
 *.swp
 *.pyc
+*.json
