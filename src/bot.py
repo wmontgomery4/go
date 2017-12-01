@@ -4,6 +4,7 @@ import glob
 import numpy as np
 import torch
 import torch.nn as nn
+from torch.autograd import Variable
 
 from data_utils import *
 from engine import *
@@ -56,7 +57,7 @@ class Bot(nn.Module):
 
         # TODO? float16
         boards = d8_forward(engine.board)
-        images = to_torch_var(input_features(boards, color).swapaxes(0,1))
+        images = input_features(boards, color).swapaxes(0,1)
         moves = self.model(images).squeeze()
         moves = d8_backward(moves.data.numpy())
 
@@ -99,6 +100,11 @@ class Bot(nn.Module):
             # Forward pass
             idxs = np.random.choice(images.shape[0], batch_size)
             X, Y = augment_data(images[idxs], labels[idxs])
+            X = Variable(torch.from_numpy(X), requires_grad=True)
+            Y = Variable(torch.from_numpy(Y))
+            if torch.cuda.is_available():
+                X = X.cuda()
+                Y = Y.cuda()
             Y_hat = self.model(X).view([batch_size, -1])
             J = self.loss(Y_hat, Y)
             # TODO: better way to access J.data[0]

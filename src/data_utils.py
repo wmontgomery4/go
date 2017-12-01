@@ -57,12 +57,6 @@ def data_from_sgf(fname):
 ######################################################################
 # Input Feature Utils
 
-def to_torch_var(arr, requires_grad=False, cuda=True):
-    torched = torch.from_numpy(arr)
-    if cuda and torch.cuda.is_available():
-        torched.cuda()
-    return torch.autograd.Variable(torched, requires_grad=requires_grad)
-
 def input_features(board, color):
     x = np.zeros((NUM_FEATURES,) + board.shape, dtype='float32')
     x[0] = (board == EMPTY)
@@ -123,7 +117,7 @@ def augment_data(images, labels):
     # TODO: data ordering
     images = input_features(images, BLACK).swapaxes(0,1)
     # TODO? use row/col, not label
-    return to_torch_var(images, requires_grad=True), to_torch_var(labels)
+    return images, labels
 
 def d8_forward(image):
     # Get all flips/rotations of the image.
