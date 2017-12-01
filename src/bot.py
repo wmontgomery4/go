@@ -4,7 +4,6 @@ import glob
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
 
 from data_utils import *
 from engine import *
@@ -36,6 +35,7 @@ class Bot(nn.Module):
             layers.append(nn.ReLU())
         layers.append(nn.Conv2d(C, 1, 3, padding=1))
         self.model = nn.Sequential(*layers)
+        # TODO: cuda config
         if torch.cuda.is_available():
             self.model.cuda()
 
@@ -56,10 +56,10 @@ class Bot(nn.Module):
             return PASS
 
         # TODO? float16
-        boards = d8_forward(engine.board)
-        images = input_features(boards, color).swapaxes(0,1)
-        moves = self.model(images).squeeze()
-        moves = d8_backward(moves.data.numpy())
+        boards = d8_forward(engine.board) # (8, 19, 19)
+        images = to_torch_var(board_to_image(boards, color)) # (8, 3, 19, 19)
+        moves = self.model(images).squeeze() # (8, 19, 19)
+        moves = d8_backward(moves.data.numpy()) # (19, 19)
 
         # Sort moves and play optimal
         idxs = np.argsort(-moves, axis=None)
@@ -88,7 +88,7 @@ class Bot(nn.Module):
                 _images, _labels = data_from_sgf(sgf)
                 images.append(_images)
                 labels.append(_labels)
-            except:
+            except NotImplementedError:
                 print("Can't load:", sgf)
                 #print("Can't load:",e)
         images = np.concatenate(images)
@@ -100,14 +100,11 @@ class Bot(nn.Module):
             # Forward pass
             idxs = np.random.choice(images.shape[0], batch_size)
             X, Y = augment_data(images[idxs], labels[idxs])
-            X = Variable(torch.from_numpy(X), requires_grad=True)
-            Y = Variable(torch.from_numpy(Y))
-            if torch.cuda.is_available():
-                X = X.cuda()
-                Y = Y.cuda()
+            # NOTE: have to copy X because rotating makes negative strides
+            X = to_torch_var(X.copy(), requires_grad=True)
             Y_hat = self.model(X).view([batch_size, -1])
+            Y = to_torch_var(Y)
             J = self.loss(Y_hat, Y)
-            # TODO: better way to access J.data[0]
             print("Step: {}/{}, loss: {:.3f}".format(i, max_iters, J.data[0]))
 
             # Backward pass

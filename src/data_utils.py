@@ -22,6 +22,19 @@ NUM_FEATURES = 3
 ######################################################################
 # Data extraction
 
+def board_to_image(board, color_to_play):
+    rank = len(board.shape)
+    if rank == 2:
+        board = board[None] # (1, size, size)
+    else:
+        assert rank == 3, "Shape must be (size, size) or (N, size, size)"
+    image = np.empty((NUM_FEATURES,) + board.shape, dtype='float32') # (3, N, 19, 19)
+    image[0] = (board == EMPTY)
+    image[1] = (board == color_to_play)
+    image[2] = (board == -color_to_play)
+    return image.swapaxes(0,1) # (N, 3, 19, 19)
+
+
 def data_from_sgf(fname):
     # Extract the sgf data.
     with open(fname) as f:
@@ -39,7 +52,7 @@ def data_from_sgf(fname):
     # Play through the game and store the inputs/outputs.
     bws = re.findall(SGF_BW, sgf)
     engine = Engine(size)
-    images = np.empty([len(bws), size, size])
+    images = np.empty([len(bws), NUM_FEATURES, size, size], dtype='float32')
     labels = np.empty(len(bws), dtype=int)
     for t, bw in enumerate(bws):
         # Convert sgf format to engine format.
@@ -48,7 +61,7 @@ def data_from_sgf(fname):
         col = ord(col) - ord('a')
         row = ord(row) - ord('a')
         # Store current image/label.
-        images[t] = color*engine.board
+        images[t] = board_to_image(engine.board, color)
         labels[t] = row*size + col
         # Update engine.
         engine.make_move((row, col), color)
@@ -57,12 +70,9 @@ def data_from_sgf(fname):
 ######################################################################
 # Input Feature Utils
 
-def input_features(board, color):
-    x = np.zeros((NUM_FEATURES,) + board.shape, dtype='float32')
-    x[0] = (board == EMPTY)
-    x[1] = (board == color)
-    x[2] = (board == -color)
-    return x
+def to_torch_var(arr, requires_grad=False, cuda=True):
+    var = torch.autograd.Variable(torch.from_numpy(arr), requires_grad=requires_grad)
+    return var.cuda() if cuda and torch.cuda.is_available() else var
 
 def rot90_labels(labels, size):
     rows = labels // size
@@ -75,19 +85,20 @@ def flipud_labels(labels, size):
     return (size - rows - 1)*size + cols
 
 def augment_data(images, labels):
+    assert len(images.shape) == 4
     idx = np.random.choice(8)
-    N, size, _ = images.shape
+    N, _, size, _ = images.shape
     if idx == 0:
         pass
     elif idx == 1:
-        images = np.rot90(images, axes=(1,2))
+        images = np.rot90(images, axes=(2,3))
         labels = rot90_labels(labels, size)
     elif idx == 2:
-        images = np.rot90(images, k=2, axes=(1,2))
+        images = np.rot90(images, k=2, axes=(2,3))
         labels = rot90_labels(labels, size)
         labels = rot90_labels(labels, size)
     elif idx == 3:
-        images = np.rot90(images, k=-1, axes=(1,2))
+        images = np.rot90(images, k=-1, axes=(2,3))
         labels = rot90_labels(labels, size)
         labels = rot90_labels(labels, size)
         labels = rot90_labels(labels, size)
@@ -95,53 +106,51 @@ def augment_data(images, labels):
         images = np.flip(images, axis=1)
         labels = flipud_labels(labels, size)
     elif idx == 5:
-        images = np.rot90(images, axes=(1,2))
+        images = np.rot90(images, axes=(2,3))
         images = np.flip(images, axis=1)
         labels = rot90_labels(labels, size)
         labels = flipud_labels(labels, size)
     elif idx == 6:
-        images = np.rot90(images, k=2, axes=(1,2))
+        images = np.rot90(images, k=2, axes=(2,3))
         images = np.flip(images, axis=1)
         labels = rot90_labels(labels, size)
         labels = rot90_labels(labels, size)
         labels = flipud_labels(labels, size)
     elif idx == 7:
-        images = np.rot90(images, k=-1, axes=(1,2))
+        images = np.rot90(images, k=-1, axes=(2,3))
         images = np.flip(images, axis=1)
         labels = rot90_labels(labels, size)
         labels = rot90_labels(labels, size)
         labels = rot90_labels(labels, size)
         labels = flipud_labels(labels, size)
     # Convert the images to input_features
-    # TODO: input_features abstraction is ugly right now
-    # TODO: data ordering
-    images = input_features(images, BLACK).swapaxes(0,1)
-    # TODO? use row/col, not label
     return images, labels
 
-def d8_forward(image):
-    # Get all flips/rotations of the image.
-    shape = (8,) + image.shape
-    images = np.empty(shape, dtype=image.dtype)
-    images[0] = image
-    images[1] = np.rot90(images[0])
-    images[2] = np.rot90(images[1])
-    images[3] = np.rot90(images[2])
-    images[4] = np.flipud(images[0])
-    images[5] = np.flipud(images[1])
-    images[6] = np.flipud(images[2])
-    images[7] = np.flipud(images[3])
-    return images
+def d8_forward(board):
+    # Get all flips/rotations of the board.
+    assert len(board.shape) == 2
+    shape = (8,) + board.shape
+    boards = np.empty(shape, dtype=board.dtype)
+    boards[0] = board
+    boards[1] = np.rot90(boards[0])
+    boards[2] = np.rot90(boards[1])
+    boards[3] = np.rot90(boards[2])
+    boards[4] = np.flipud(boards[0])
+    boards[5] = np.flipud(boards[1])
+    boards[6] = np.flipud(boards[2])
+    boards[7] = np.flipud(boards[3])
+    return boards
 
-def d8_backward(images):
-    # Revert all flipped/rotated images back to original space.
-    refls = np.empty(images.shape, dtype=images.dtype)
-    refls[0] = images[0]
-    refls[1] = np.rot90(images[1], k=-1)
-    refls[2] = np.rot90(images[2], k=2)
-    refls[3] = np.rot90(images[3])
-    refls[4] = np.flipud(images[4])
-    refls[5] = np.rot90(np.flipud(images[5]), k=-1)
-    refls[6] = np.rot90(np.flipud(images[6]), k=2)
-    refls[7] = np.rot90(np.flipud(images[7]))
+def d8_backward(boards):
+    # Revert all flipped/rotated boards back to original space.
+    assert len(boards.shape) == 3
+    refls = np.empty(boards.shape, dtype=boards.dtype)
+    refls[0] = boards[0]
+    refls[1] = np.rot90(boards[1], k=-1)
+    refls[2] = np.rot90(boards[2], k=2)
+    refls[3] = np.rot90(boards[3])
+    refls[4] = np.flipud(boards[4])
+    refls[5] = np.rot90(np.flipud(boards[5]), k=-1)
+    refls[6] = np.rot90(np.flipud(boards[6]), k=2)
+    refls[7] = np.rot90(np.flipud(boards[7]))
     return refls.mean(axis=0)

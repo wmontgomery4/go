@@ -53,7 +53,7 @@ if __name__ == "__main__":
     p.add_argument('-i', '--interactive', action='store_true')
     p.add_argument('-c', '--config')
     p.add_argument('-n', '--name')
-    p.add_argument('-s', '--step')
+    p.add_argument('-s', '--step', type=int)
     args = p.parse_args()
 
     # TODO: Add/Train/Test subcommands
