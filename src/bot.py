@@ -27,10 +27,10 @@ class Bot(nn.Module):
         # TODO: add value network
         # TODO: model.py/optim.py/loss.py/source.py
         C = self.config['model']['n_channels']
-        L = self.config['model']['n_layers']
+        H = self.config['model']['n_hidden_layers']
         layers = [nn.Conv2d(NUM_FEATURES, C, 3, padding=1)]
         layers.append(nn.ReLU())
-        for i in range(L-2):
+        for i in range(H):
             layers.append(nn.Conv2d(C, C, 3, padding=1))
             layers.append(nn.ReLU())
         layers.append(nn.Conv2d(C, 1, 3, padding=1))
