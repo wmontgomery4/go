@@ -77,6 +77,7 @@ class Bot(nn.Module):
     def train(self):
         max_iters = 1000000
         batch_size = 8
+        log_interval = 100
         save_interval = 1000
         data_source = 'data/Takagawa/*.sgf'
 
@@ -98,7 +99,7 @@ class Bot(nn.Module):
 
         # Train on minibatches
         print("Training on", images.shape[0], "moves!")
-        for i in range(max_iters):
+        while self.step < max_iters:
             # Forward pass
             idxs = np.random.choice(images.shape[0], batch_size)
             X, Y = augment_data(images[idxs], labels[idxs])
@@ -107,15 +108,16 @@ class Bot(nn.Module):
             Y_hat = self.model(X).view([batch_size, -1])
             Y = to_torch_var(Y, dtype=int)
             J = self.loss(Y_hat, Y)
-            print("Step: {}/{}, loss: {:.3f}".format(i, max_iters, J.data[0]))
 
             # Backward pass
             self.optim.zero_grad()
             J.backward()
             self.optim.step()
 
-            # Save
+            # Saving/Logging
             self.step += 1
+            if self.step % log_interval == 0:
+                print("Step: {}/{}, loss: {:.3f}".format(self.step, max_iters, J.data[0]))
             if self.step % save_interval == 0:
                 self.save()
 

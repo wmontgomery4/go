@@ -28,7 +28,7 @@ def add_bot(config_json, name=None):
         config = json.load(f)
     config['weights_dat'] = os.path.join(root, WEIGHTS_FORMAT)
     with open(CONFIG_JSON.format(name), 'w') as f:
-        json.dump(config, f)
+        json.dump(config, f, indent=2)
     return name
 
 
