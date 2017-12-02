@@ -86,7 +86,6 @@ class Bot(nn.Module):
         images = []
         labels = []
         for sgf in glob.iglob(data_source):
-            print("Loading", sgf)
             # TODO: why does that one Go Seigen game fail?
             try:
                 _images, _labels = data_from_sgf(sgf)
