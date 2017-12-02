@@ -70,7 +70,7 @@ if __name__ == "__main__":
     with open(CONFIG_JSON.format(name)) as f:
         config = json.load(f)
     bot = Bot(config, step=args.step)
-    print("Loaded", args.name, "step", args.step)
+    print("Loaded", name, "step", args.step)
 
     # Main logic
     if args.train:
