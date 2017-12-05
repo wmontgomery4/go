@@ -75,10 +75,10 @@ class Bot(nn.Module):
 
     # TODO: label smoothing or max_ent
     def train(self):
-        max_iters = 1000000
+        max_iters = 10000000
         batch_size = 8
         log_interval = 100
-        save_interval = 1000
+        save_interval = 10000
         data_source = 'data/Takagawa/*.sgf'
 
         # Get data
