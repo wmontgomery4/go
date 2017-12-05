@@ -1,6 +1,4 @@
-# TODO: move to source.py
 import glob
-
 import numpy as np
 import torch
 import torch.nn as nn
@@ -10,15 +8,11 @@ from engine import *
 
 
 class Bot(nn.Module):
-    def __init__(self, config, step=None):
+    def __init__(self, config, step=0):
         super(Bot, self).__init__()
-
         # TODO: random seeding
-
-        # Store args
         self.config = config
-        # TODO: load last weights if possible
-        self.step = step or 0
+        self.step = step
         self.size = 19
 
         # TODO: move all below init to separate method
@@ -40,6 +34,7 @@ class Bot(nn.Module):
             self.model.cuda()
 
         # Load weights
+        # TODO: load last weights if possible
         if self.step:
             weights_dat = config['weights_dat'].format(step)
             # TODO: cleaner loading
@@ -50,12 +45,13 @@ class Bot(nn.Module):
                                                       map_location=lambda s,l: s))
 
         # Build optim/loss
+        # TODO: label smoothing or max_ent
         lr = self.config['optim']['lr']
         self.optim = torch.optim.Adam(self.model.parameters(), lr=lr)
         self.loss = nn.CrossEntropyLoss()
 
     def gen_move(self, engine, color):
-        # TODO: add passing move
+        # TODO: add passing move using value and threshold
         if engine.last_move == PASS:
             return PASS
 
@@ -73,19 +69,13 @@ class Bot(nn.Module):
                 return move
         return PASS
 
-    # TODO: label smoothing or max_ent
     def train(self):
-        max_iters = 10000000
-        batch_size = 8
-        log_interval = 100
-        save_interval = 10000
-        data_source = 'data/Takagawa/*.sgf'
-
         # Get data
         # TODO: proper data loader
+        # TODO: optim.py
         images = []
         labels = []
-        for sgf in glob.iglob(data_source):
+        for sgf in glob.iglob(self.config['source']):
             # TODO: why does that one Go Seigen game fail?
             try:
                 _images, _labels = data_from_sgf(sgf)
@@ -96,15 +86,15 @@ class Bot(nn.Module):
         images = np.concatenate(images)
         labels = np.concatenate(labels)
 
-        # Train on minibatches
         print("Training on", images.shape[0], "moves!")
-        while self.step < max_iters:
+        cfg = self.config['optim']
+        while self.step < cfg['max_iterations']:
             # Forward pass
-            idxs = np.random.choice(images.shape[0], batch_size)
+            idxs = np.random.choice(images.shape[0], cfg['batch_size'])
             X, Y = augment_data(images[idxs], labels[idxs])
             # NOTE: have to copy X because rotating makes negative strides
             X = to_torch_var(X.copy(), requires_grad=True)
-            Y_hat = self.model(X).view([batch_size, -1])
+            Y_hat = self.model(X).view([cfg['batch_size'], -1])
             Y = to_torch_var(Y, dtype=int)
             J = self.loss(Y_hat, Y)
 
@@ -114,10 +104,13 @@ class Bot(nn.Module):
             self.optim.step()
 
             # Saving/Logging
+            # TODO: real logging
             self.step += 1
-            if self.step % log_interval == 0:
-                print("Step: {}/{}, loss: {:.3f}".format(self.step, max_iters, J.data[0]))
-            if self.step % save_interval == 0:
+            if self.step % cfg['log_interval'] == 0:
+                print("Step: {}/{}, loss: {:.3f}".format(self.step,
+                                                         cfg['max_iterations'],
+                                                         J.data[0]))
+            if self.step % cfg['save_interval'] == 0:
                 self.save()
 
     def save(self):

@@ -1,10 +1,15 @@
 {
+    "source": "data/Go_Seigen/*.sgf",
     "model": {
         "n_hidden_layers": 6,
         "n_channels": 36
     },
     "optim": {
         "type": "adam",
-        "lr": 1e-4
+        "lr": 1e-4,
+        "batch_size" : 8,
+        "log_interval" : 100,
+        "save_interval" : 10000,
+        "max_iterations" : 1e9
     }
 }
