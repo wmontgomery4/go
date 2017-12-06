@@ -15,8 +15,6 @@ class Bot(nn.Module):
         self.step = step
         self.size = 19
 
-        # TODO: move all below init to separate method
-
         # Initialize model
         # TODO: add value network
         # TODO: model.py/optim.py/loss.py/source.py
@@ -29,7 +27,6 @@ class Bot(nn.Module):
             layers.append(nn.ReLU())
         layers.append(nn.Conv2d(C, 1, 3, padding=1))
         self.model = nn.Sequential(*layers)
-        # TODO: cuda config
         if torch.cuda.is_available():
             self.model.cuda()
 
@@ -37,7 +34,6 @@ class Bot(nn.Module):
         # TODO: load last weights if possible
         if self.step:
             weights_dat = config['weights_dat'].format(step)
-            # TODO: cleaner loading
             try:
                 self.model.load_state_dict(torch.load(weights_dat))
             except AssertionError:
@@ -73,7 +69,6 @@ class Bot(nn.Module):
     def train(self):
         # Get data
         # TODO: proper data loader
-        # TODO: optim.py (or train_bot function)
         images = []
         labels = []
         for sgf in glob.iglob(self.config['source']):
