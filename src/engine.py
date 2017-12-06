@@ -1,3 +1,4 @@
+import itertools
 import numpy as np
 
 EMPTY = 0
@@ -42,21 +43,17 @@ class Engine():
         self._clear(move)
 
     def score(self):
-        black = (self.board == BLACK).sum()
-        white = (self.board == WHITE).sum()
+        score = self.board.sum() - self.komi
         counted = set()
-        for position in zip(*(self.board == EMPTY).nonzero()):
-            if position in counted:
+        for position in itertools.product(range(self.size), repeat=2):
+            color = self.board[position]
+            if color != EMPTY or position in counted:
                 continue
             visited = self._flood(position)
-            counted.update(visited[EMPTY])
-            if visited[BLACK] and visited[WHITE]:
-                continue
-            elif visited[BLACK]:
-                black += len(visited[EMPTY])
-            elif visited[WHITE]:
-                white += len(visited[EMPTY])
-        return black - white - self.komi
+            if not (visited[BLACK] and visited[WHITE]):
+                score += len(visited[EMPTY]) * (BLACK if visited[BLACK] else WHITE)
+            counted.update(visited[color])
+        return score
 
     def _clear(self, position):
         color = self.board[position]
@@ -152,4 +149,4 @@ if __name__ == '__main__':
     # Add an extra stone so that black doesn't get all points
     engine.make_move(engine.move_from_string("Q4"), WHITE)
     print(engine)
-    print("Score: ", engine.score())
+    print("Score (should be -2.5): ", engine.score())
