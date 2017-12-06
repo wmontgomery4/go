@@ -69,10 +69,11 @@ class Bot(nn.Module):
                 return move
         return PASS
 
+    # TODO: rename to step, with is_test option
     def train(self):
         # Get data
         # TODO: proper data loader
-        # TODO: optim.py
+        # TODO: optim.py (or train_bot function)
         images = []
         labels = []
         for sgf in glob.iglob(self.config['source']):

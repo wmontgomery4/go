@@ -8,63 +8,75 @@ PASS = ()
 
 
 class Engine():
-    def __init__(self, size=19):
+    def __init__(self, size=19, komi=6.5):
         self.size = size
-        self.clear()
+        self.komi = komi
+        self.reset()
 
-    def clear(self):
+    def reset(self):
         self.board = np.zeros((self.size, self.size), dtype=int)
-        self.libs = np.zeros((self.size, self.size), dtype=int)
         self.last_move = None
         self.ko = None
-        # TODO: keep track of prisoners?
 
-    def score(self):
-        # TODO: Better scoring system.
-        return self.board.sum()
-
+    # TODO: Fix ko rule.
+    # TODO: Suicide rule?
     def legal(self, move, color):
-        if move == PASS:
-            return True
-        if self.board[move] != EMPTY:
-            return False
-        # TODO: Fix ko rule.
         if move == self.ko:
             return False
-        # Suicide rule.
-        neighbors = self._neighbors(move)
-        for p in neighbors:
-            if self.board[p] == EMPTY:
-                return True
-            elif self.board[p] == -color and self.libs[p] == 1:
-                return True
-            elif self.board[p] == color and self.libs[p] > 1:
-                return True
-        return False
+        elif self.board[move] != EMPTY:
+            return False
+        return True
 
     def make_move(self, move, color):
-        # TODO: Try other data structures, compare speed.
         assert self.legal(move, color)
         self.last_move = move
-        # If passed we're done.
         if move == PASS:
             return
-        # Place the stone and update flags.
+        # 1) Place stone
         self.board[move] = color
-        # Flood the loss of liberties, keep track of uncounted stones.
-        visited = np.zeros((self.size, self.size), dtype=bool)
-        affected = set([move])
-        self._flood(self._first_sweep, move, color, visited, affected)
-        # Count all of the remaining groups.
-        all_visited = np.zeros((self.size, self.size), dtype=bool)
-        for position in affected:
-            if all_visited[position]:
+        # 2) Clear opponent
+        for p in self._neighbors(move):
+            if self.board[p] == -color:
+                self._clear(p)
+        # 3) Clear self
+        self._clear(move)
+
+    def score(self):
+        black = (self.board == BLACK).sum()
+        white = (self.board == WHITE).sum()
+        counted = set()
+        for position in zip(*(self.board == EMPTY).nonzero()):
+            if position in counted:
                 continue
-            visited = np.zeros((self.size, self.size), dtype=bool)
-            counted = set()
-            self._count(position, color, visited, counted)
-            self.libs[visited] = len(counted)
-            all_visited += visited
+            visited = self._flood(position)
+            counted.update(visited[EMPTY])
+            if visited[BLACK] and visited[WHITE]:
+                continue
+            elif visited[BLACK]:
+                black += len(visited[EMPTY])
+            elif visited[WHITE]:
+                white += len(visited[EMPTY])
+        return black - white - self.komi
+
+    def _clear(self, position):
+        color = self.board[position]
+        visited = self._flood(position)
+        if not visited[EMPTY]:
+            for p in visited[color]:
+                self.board[p] = EMPTY
+
+    def _flood(self, position, visited=None):
+        if not visited:
+            visited = {EMPTY:set(), BLACK:set(), WHITE:set()}
+        color = self.board[position]
+        visited[color].add(position)
+        for n in self._neighbors(position):
+            n_color = self.board[n]
+            if n_color != color:
+                visited[n_color].add(n)
+            elif n not in visited[color]:
+                self._flood(n, visited)
+        return visited
 
     def _neighbors(self, position):
         r, c = position
@@ -79,52 +91,6 @@ class Engine():
             neighbors.append((r, c+1))
         return neighbors
 
-    def _flood(self, fn, position, *args):
-        r, c = position
-        if r > 0:
-            fn((r-1, c), *args)
-        if r < self.size - 1:
-            fn((r+1, c), *args)
-        if c > 0:
-            fn((r, c-1), *args)
-        if c < self.size - 1:
-            fn((r, c+1), *args)
-
-    def _first_sweep(self, position, color, visited, affected):
-        if visited[position] or self.board[position] != -color:
-            return
-        if self.libs[position] > 1:
-            self._reduce(position, -color, visited)
-        else:
-            self._remove(position, -color, visited, affected)
-
-    def _reduce(self, position, color, visited):
-        if visited[position] or self.board[position] != color:
-            return
-        visited[position] = True
-        self.libs[position] -= 1
-        self._flood(self._reduce, position, color, visited)
-
-    def _remove(self, position, color, visited, affected):
-        if visited[position] or self.board[position] == EMPTY:
-            return
-        if self.board[position] == -color:
-            affected.add(position)
-            return
-        visited[position] = True
-        self.board[position] = EMPTY
-        self.libs[position] = 0
-        self._flood(self._remove, position, color, visited, affected)
-
-    def _count(self, position, color, visited, counted):
-        if visited[position] or self.board[position] == -color:
-            return
-        if self.board[position] == EMPTY:
-            counted.add(position)
-            return
-        visited[position] = True
-        self._flood(self._count, position, color, visited, counted)
-
     def string_from_move(self, move):
         row, col = move
         number = str(self.size - row)
@@ -132,7 +98,7 @@ class Engine():
         return letter + number
 
     def move_from_string(self, string):
-        letter = string[0]
+        letter = string[0].upper()
         number = string[1:]
         row = self.size - int(number)
         col = ord(letter) - ord('A')
@@ -159,7 +125,7 @@ class Engine():
         if self.size == 9:
             grid[4,4] = '\u25CD'
             grid[2::4, 2::4] = '\u25CD'
-        if self.size == 19:
+        elif self.size == 19:
             grid[3:16:6, 3:16:6] = '\u25CD'
         # Stones.
         grid[self.board == BLACK] = '\u25EF'
@@ -175,15 +141,15 @@ class Engine():
         return string
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     engine = Engine()
-    # Almost dead turtle shape.
+    # Capture a stone
     engine.make_move(engine.move_from_string("D4"), WHITE)
-    engine.make_move(engine.move_from_string("D5"), WHITE)
     engine.make_move(engine.move_from_string("D3"), BLACK)
     engine.make_move(engine.move_from_string("C4"), BLACK)
-    engine.make_move(engine.move_from_string("C5"), BLACK)
     engine.make_move(engine.move_from_string("E4"), BLACK)
-    engine.make_move(engine.move_from_string("E5"), BLACK)
+    engine.make_move(engine.move_from_string("D5"), BLACK)
+    # Add an extra stone so that black doesn't get all points
+    engine.make_move(engine.move_from_string("Q4"), WHITE)
     print(engine)
-    print(engine.libs)
+    print("Score: ", engine.score())
